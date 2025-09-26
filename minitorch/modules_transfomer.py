@@ -45,12 +45,11 @@ class MultiHeadAttention(Module):
         self.attn_hidden_dim = n_embd // n_head
 
         ### BEGIN ASSIGN3_3
-        raise NotImplementedError
-        # self.q_projection = 
-        # self.k_projection = 
-        # self.v_projection = 
-        # self.out_projection = 
-        # self.dropout = 
+        self.q_projection = Linear(n_embd, n_embd, bias=bias, backend=backend)
+        self.k_projection = Linear(n_embd, n_embd, bias=bias, backend=backend)
+        self.v_projection = Linear(n_embd, n_embd, bias=bias, backend=backend)
+        self.out_projection = Linear(n_embd, n_embd, bias=bias, backend=backend)
+        self.dropout = Dropout(p_dropout)
         ### END ASSIGN3_3
 
     def create_causal_mask(self, seq_len):
@@ -87,7 +86,15 @@ class MultiHeadAttention(Module):
         """
         batch_size, seq_len, n_embd = x.shape
         ### BEGIN ASSIGN3_3
-        raise NotImplementedError
+        q_linear = self.q_projection(x)
+        k_linear = self.k_projection(x)
+        v_linear = self.v_projection(x)
+
+        q = q_linear.view(batch_size, seq_len, self.n_head, self.attn_hidden_dim).transpose(1, 2)
+        k = k_linear.view(batch_size, seq_len, self.n_head, self.attn_hidden_dim).transpose(1, 2)
+        v = v_linear.view(batch_size, seq_len, self.n_head, self.attn_hidden_dim).transpose(1, 2)
+
+        kT = k.transpose(-1, -2)
         ### END ASSIGN3_3
         return q, kT, v
     
@@ -110,7 +117,18 @@ class MultiHeadAttention(Module):
         result = None
         
         ### BEGIN ASSIGN3_3
-        raise NotImplementedError
+        scores = (q @ kT) / sqrt(self.attn_hidden_dim)
+
+        if self.causal:
+            mask = self.create_causal_mask(queries_len)  # (1,1,T,T) broadcasts to (B,H,T,T)
+            scores = scores + mask
+
+        attn = softmax(scores, dim=-1)
+        attn = self.dropout(attn)
+        context = attn @ v
+        context = context.transpose(1, 2)
+        context = context.view(batch_size, queries_len, self.n_head * v_dim)
+        result = self.out_projection(context)
         ### END ASSIGN3_3
 
         return result
@@ -127,7 +145,9 @@ class MultiHeadAttention(Module):
         """
         batch_size, seq_len, n_embd = x.shape
         ### BEGIN ASSIGN3_3
-        raise NotImplementedError
+        q, kT, v = self.project_to_query_key_value(x)
+        out = self.self_attention(q, kT, v)
+        return out
         ### END ASSIGN3_3
 
 
