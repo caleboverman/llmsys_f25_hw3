@@ -122,28 +122,23 @@ class Linear(Module):
         in_size = self.in_size
         out_size = self.out_size
         shape = x.shape
-        assert shape[-1] == in_size, f"Expected last dim {in_size}, got {shape[-1]}"
 
-        # Flatten leading dims
         flat_batch = 1
         for d in shape[:-1]:
             flat_batch *= d
 
-        x2 = x.view(flat_batch, in_size)                # (B*, I)
-        W  = self.weights.value.view(in_size, out_size) # (I, O)
+        x2 = x.view(flat_batch, in_size)
+        W  = self.weights.value.view(in_size, out_size)
 
-        # Compute x2 @ W via broadcasted multiply + sum (no .matmul needed)
-        x_b = x2.view(flat_batch, in_size, 1)           # (B*, I, 1)
-        W_b = W.view(1, in_size, out_size)              # (1,  I, O)
-        out2d = (x_b * W_b).sum(1).view(flat_batch, out_size)  # (B*, O)
+        x_b = x2.view(flat_batch, in_size, 1)
+        W_b = W.view(1, in_size, out_size)
+        out2d = (x_b * W_b).sum(1).view(flat_batch, out_size)
 
-        # Reshape back
         if len(shape) == 2:
             out = out2d.view(shape[0], out_size)
         else:
             out = out2d.view(*shape[:-1], out_size)
 
-        # Add bias with proper broadcasting
         if self.bias is not None:
             lead_ones = [1] * (len(shape) - 1)
             b = self.bias.value.view(*(lead_ones + [out_size]))
