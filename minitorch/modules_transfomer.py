@@ -117,7 +117,7 @@ class MultiHeadAttention(Module):
         result = None
         
         ### BEGIN ASSIGN3_3
-        scores = (q @ kT) / sqrt(self.attn_hidden_dim)
+        scores = (q @ kT) / np.sqrt(self.attn_hidden_dim)
 
         if self.causal:
             mask = self.create_causal_mask(queries_len)  # (1,1,T,T) broadcasts to (B,H,T,T)
@@ -248,12 +248,16 @@ class TransformerLayer(Module):
         batch_size, seq_len, n_embd = x.shape
         ### BEGIN YOUR SOLUTION
         residual = x
+        x = x.view(batch_size, seq_len, n_embd)
         x = self.ln_1(x)
+        x = x.view(batch_size, seq_len, n_embd)
         x = self.attention(x)
         x = residual + x
 
         residual = x
+        x = x.view(batch_size, seq_len, n_embd)
         x = self.ln_2(x)
+        x = x.view(batch_size, seq_len, n_embd)
         x = self.ff(x)
         x = residual + x
         return x
