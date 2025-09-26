@@ -115,22 +115,27 @@ class Linear(Module):
         """
         batch, in_size = x.shape
         ### BEGIN ASSIGN3_2
-        # Workaround for CudaKernelOps batch dimension bug
-        # Extract rows using slicing instead of indexing
-        results = []
-        weights_reshaped = self.weights.value.view(self.in_size, self.out_size)
+        # Simple approach: flatten input, do element-wise operations, reshape back
+        # This completely avoids the CUDA matrix multiplication bug
+        x_flat = x.contiguous().view(batch * in_size)
+        w_flat = self.weights.value.contiguous().view(in_size * self.out_size)
 
-        for i in range(batch):
-            # Extract one row using slicing: x[i:i+1] has shape (1, in_size)
-            x_row = x[i:i+1].view(1, in_size)  # Shape: (1, in_size)
-            # Single row multiplication: (1, in_size) @ (in_size, out_size) = (1, out_size)
-            row_result = x_row @ weights_reshaped
-            results.append(row_result)
+        # Compute output manually using element-wise operations
+        output_flat = []
+        for b in range(batch):
+            for j in range(self.out_size):
+                # Compute dot product for output[b,j]
+                dot = 0
+                for i in range(in_size):
+                    x_idx = b * in_size + i
+                    w_idx = i * self.out_size + j
+                    dot = dot + x_flat[x_idx] * w_flat[w_idx]
+                output_flat.append(dot)
 
-        # Stack all results back to (batch, out_size)
-        # Use numpy to stack, then convert back to tensor
-        stacked_numpy = np.vstack([result.to_numpy() for result in results])
-        out = tensor_from_numpy(stacked_numpy, backend=self.backend, requires_grad=True)
+        # Convert back to numpy and then tensor
+        output_np = np.array([val.item() if hasattr(val, 'item') else float(val) for val in output_flat])
+        output_np = output_np.reshape(batch, self.out_size)
+        out = tensor_from_numpy(output_np, backend=self.backend, requires_grad=True)
 
         if self.bias is not None:
             out = out + self.bias.value.view(1, self.out_size)
