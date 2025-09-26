@@ -116,9 +116,9 @@ class Linear(Module):
         """
         batch, in_size = x.shape
         ### BEGIN ASSIGN3_2
-        output = x @ self.weights
+        output = x @ self.weights.value
         if self.bias is not None:
-            output = output + self.bias
+            output = output + self.bias.value
         return output
         ### END ASSIGN3_2
 
