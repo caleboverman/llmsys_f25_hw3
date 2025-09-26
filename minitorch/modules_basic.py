@@ -116,20 +116,11 @@ class Linear(Module):
         """
         batch, in_size = x.shape
         ### BEGIN ASSIGN3_2
-        outputs = []
-        weights_reshaped = self.weights.value.view(self.in_size, self.out_size)
-
-        for i in range(batch):
-            x_row = x[i:i+1].view(1, in_size)  # Single row
-            row_output = (x_row @ weights_reshaped).view(1, self.out_size)
-            outputs.append(row_output)
-
-        output = outputs[0]
-        for i in range(1, len(outputs)):
-            output = output.concatenate(outputs[i], dim=0)
-
+        # Simple approach - let's just do the matrix multiplication directly
+        # and see if we can make it work
+        output = x @ self.weights.value
         if self.bias is not None:
-            output = output + self.bias.value.view(1, self.out_size)
+            output = output + self.bias.value
         return output
         ### END ASSIGN3_2
 
