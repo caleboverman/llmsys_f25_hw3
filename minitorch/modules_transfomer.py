@@ -93,11 +93,11 @@ class MultiHeadAttention(Module):
         k_linear = self.k_projection(x2d).view(batch_size, seq_len, n_embd)
         v_linear = self.v_projection(x2d).view(batch_size, seq_len, n_embd)
 
-        q = q_linear.view(batch_size, seq_len, self.n_head, self.attn_hidden_dim).transpose(1, 2)
-        k = k_linear.view(batch_size, seq_len, self.n_head, self.attn_hidden_dim).transpose(1, 2)
-        v = v_linear.view(batch_size, seq_len, self.n_head, self.attn_hidden_dim).transpose(1, 2)
+        q = q_linear.view(batch_size, seq_len, self.n_head, self.attn_hidden_dim).permute(0, 2, 1, 3)
+        k = k_linear.view(batch_size, seq_len, self.n_head, self.attn_hidden_dim).permute(0, 2, 1, 3)
+        v = v_linear.view(batch_size, seq_len, self.n_head, self.attn_hidden_dim).permute(0, 2, 1, 3)
 
-        kT = k.transpose(-1, -2)
+        kT = k.permute(0, 1, 3, 2)
         ### END ASSIGN3_3
         return q, kT, v
 
@@ -129,7 +129,7 @@ class MultiHeadAttention(Module):
         attn = softmax(scores, dim=-1)
         attn = self.dropout(attn)
         context = attn @ v
-        context = context.transpose(1, 2)
+        context = context.permute(0, 2, 1, 3)
         context = context.view(batch_size, queries_len, self.n_head * v_dim)
         context2d = context.view(batch_size * queries_len, self.n_head * v_dim)
         result2d = self.out_projection(context2d)
