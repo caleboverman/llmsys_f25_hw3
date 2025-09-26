@@ -170,7 +170,8 @@ class LayerNorm1d(Module):
         self.dim = dim
         self.eps = eps
         ### BEGIN ASSIGN3_2
-        raise NotImplementedError
+        self.weights = Parameter(ones((dim,), backend=backend))
+        self.bias = Parameter(zeros((dim,), backend=backend))
         ### END ASSIGN3_2
 
     def forward(self, x: Tensor) -> Tensor:
@@ -186,5 +187,10 @@ class LayerNorm1d(Module):
         """
         batch, dim = x.shape
         ### BEGIN ASSIGN3_2
-        raise NotImplementedError
+        mean = x.mean(dim=1).view(batch, 1)
+        var = ((x - mean) ** 2).mean(dim=1).view(batch, 1)
+        x_hat = (x - mean) / (var + self.eps) ** 0.5
+        out = x_hat * self.weights.value + self.bias.value
+        return out
+
         ### END ASSIGN3_2
