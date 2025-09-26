@@ -116,13 +116,13 @@ class Linear(Module):
         batch, in_size = x.shape
         ### BEGIN ASSIGN3_2
         # Workaround for CudaKernelOps batch dimension bug
-        # Process one row at a time to avoid problematic batch × matrix multiplication
+        # Extract rows using slicing instead of indexing
         results = []
         weights_reshaped = self.weights.value.view(self.in_size, self.out_size)
 
         for i in range(batch):
-            # Extract one row: x[i] has shape (in_size,)
-            x_row = x[i].view(1, in_size)  # Reshape to (1, in_size)
+            # Extract one row using slicing: x[i:i+1] has shape (1, in_size)
+            x_row = x[i:i+1].view(1, in_size)  # Shape: (1, in_size)
             # Single row multiplication: (1, in_size) @ (in_size, out_size) = (1, out_size)
             row_result = x_row @ weights_reshaped
             results.append(row_result)
