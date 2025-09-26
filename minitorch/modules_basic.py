@@ -48,7 +48,19 @@ class Embedding(Module):
         bs, seq_len = x.shape
         ### BEGIN ASSIGN3_2
         x_one_hot = one_hot(x, self.num_embeddings)
-        out = x_one_hot @ self.weight.value
+        V, E = self.num_embeddings, self.embedding_dim
+
+        # Flatten to 2D → (bs*seq_len, V)
+        x_flat = x_one_hot.view(bs * seq_len, V)
+        W = self.weight.value.view(V, E)  # (V, E)
+
+        # Compute x_flat @ W via broadcasted multiply + sum to avoid backend 3D×2D matmul
+        xb = x_flat.view(bs * seq_len, V, 1)   # (B*, V, 1)
+        Wb = W.view(1, V, E)                   # (1,  V, E)
+        out_flat = (xb * Wb).sum(1).view(bs * seq_len, E)  # (B*, E)
+
+        # Reshape back to (bs, seq_len, E)
+        out = out_flat.view(bs, seq_len, E)
         return out
         ### END ASSIGN3_2
 
