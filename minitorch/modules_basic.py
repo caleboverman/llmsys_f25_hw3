@@ -95,11 +95,15 @@ class Linear(Module):
         self.in_size = in_size
         self.backend = backend
 
-        # Use similar initialization to hw2 but with the backend parameter
-        self.weights = Parameter(rand((in_size, out_size), backend=backend))
+        # Initialize weights/bias from Uniform(-1/sqrt(in_size), 1/sqrt(in_size))
+        bound = 1.0 / (in_size ** 0.5)
+        # rand() in [0,1); scale to [-bound, bound]
+        W0 = (rand((in_size, out_size), backend=backend) * (2 * bound)) - bound
+        self.weights = Parameter(W0)
 
         if bias:
-            self.bias = Parameter(rand((out_size,), backend=backend))
+            b0 = (rand((out_size,), backend=backend) * (2 * bound)) - bound
+            self.bias = Parameter(b0)
         else:
             self.bias = None
         ### END ASSIGN3_2
@@ -115,12 +119,36 @@ class Linear(Module):
         """
         batch, in_size = x.shape
         ### BEGIN ASSIGN3_2
-        # Use the exact hw2 pattern with explicit views
-        x_out = x.view(batch, in_size)
-        weights_out = self.weights.value.view(self.in_size, self.out_size)
-        out = (x_out @ weights_out).view(batch, self.out_size)
+        in_size = self.in_size
+        out_size = self.out_size
+        shape = x.shape
+        assert shape[-1] == in_size, f"Expected last dim {in_size}, got {shape[-1]}"
+
+        # Flatten leading dims
+        flat_batch = 1
+        for d in shape[:-1]:
+            flat_batch *= d
+
+        x2 = x.view(flat_batch, in_size)                # (B*, I)
+        W  = self.weights.value.view(in_size, out_size) # (I, O)
+
+        # Compute x2 @ W via broadcasted multiply + sum (no .matmul needed)
+        x_b = x2.view(flat_batch, in_size, 1)           # (B*, I, 1)
+        W_b = W.view(1, in_size, out_size)              # (1,  I, O)
+        out2d = (x_b * W_b).sum(1).view(flat_batch, out_size)  # (B*, O)
+
+        # Reshape back
+        if len(shape) == 2:
+            out = out2d.view(shape[0], out_size)
+        else:
+            out = out2d.view(*shape[:-1], out_size)
+
+        # Add bias with proper broadcasting
         if self.bias is not None:
-            out = out + self.bias.value.view(1, self.out_size)
+            lead_ones = [1] * (len(shape) - 1)
+            b = self.bias.value.view(*(lead_ones + [out_size]))
+            out = out + b
+
         return out
         ### END ASSIGN3_2
 
