@@ -247,13 +247,15 @@ class TransformerLayer(Module):
         """
         batch_size, seq_len, n_embd = x.shape
         ### BEGIN YOUR SOLUTION
+        residual = x
         x = self.ln_1(x)
         x = self.attention(x)
-        x = resid + x
+        x = residual + x
 
+        residual = x
         x = self.ln_2(x)
         x = self.ff(x)
-        x = resid + x
+        x = residual + x
         return x
         ### END YOUR SOLUTION
 
