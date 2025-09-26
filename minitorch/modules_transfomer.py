@@ -248,14 +248,14 @@ class TransformerLayer(Module):
         batch_size, seq_len, n_embd = x.shape
         ### BEGIN YOUR SOLUTION
         residual = x
-        x = x.view(batch_size, seq_len, n_embd)
+        x = x.view(batch_size * seq_len, n_embd)
         x = self.ln_1(x)
         x = x.view(batch_size, seq_len, n_embd)
         x = self.attention(x)
         x = residual + x
 
         residual = x
-        x = x.view(batch_size, seq_len, n_embd)
+        x = x.view(batch_size * seq_len, n_embd)
         x = self.ln_2(x)
         x = x.view(batch_size, seq_len, n_embd)
         x = self.ff(x)
