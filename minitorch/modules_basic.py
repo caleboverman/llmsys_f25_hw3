@@ -91,7 +91,18 @@ class Linear(Module):
         """
         self.out_size = out_size
         ### BEGIN ASSIGN3_2
-        raise NotImplementedError
+        self.in_size = in_size
+        self.backend = backend
+        bound = 1.0 / np.sqrt(in_size)
+
+        weights = rand((in_size, out_size), backend=backend) * 2 * bound - bound
+        self.weights = Parameter(weights)
+
+        if bias:
+            bias_data = rand((out_size,), backend=backend) * 2 * bound - bound
+            self.bias = Parameter(bias_data)
+        else:
+            self.bias = None
         ### END ASSIGN3_2
 
     def forward(self, x: Tensor):
@@ -105,7 +116,10 @@ class Linear(Module):
         """
         batch, in_size = x.shape
         ### BEGIN ASSIGN3_2
-        raise NotImplementedError
+        output = x @ self.weights
+        if self.bias is not None:
+            output = output + self.bias
+        return output
         ### END ASSIGN3_2
 
 
