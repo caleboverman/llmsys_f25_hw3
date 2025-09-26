@@ -130,6 +130,7 @@ class MultiHeadAttention(Module):
         attn = self.dropout(attn)
         context = attn @ v
         context = context.permute(0, 2, 1, 3)
+        context = context.contiguous()
         context = context.view(batch_size, queries_len, self.n_head * v_dim)
         context2d = context.view(batch_size * queries_len, self.n_head * v_dim)
         result2d = self.out_projection(context2d)
