@@ -116,7 +116,28 @@ class Linear(Module):
         """
         batch, in_size = x.shape
         ### BEGIN ASSIGN3_2
-        output = x @ self.weights.value
+        # Workaround for CudaKernelOps matrix_multiply bug
+        # Flatten input to 2D, perform 2D-by-2D multiplication, then reshape back
+        x_flat = x.contiguous().view(batch * in_size)  # Shape: (batch * in_size,)
+        w_flat = self.weights.value.contiguous().view(in_size, self.out_size)  # Shape: (in_size, out_size)
+
+        # Perform matrix multiplication one row at a time to avoid batch dimension bug
+        output_rows = []
+        for b in range(batch):
+            # Extract one row of input: shape (in_size,)
+            x_row = x_flat[b * in_size : (b + 1) * in_size].view(1, in_size)  # Shape: (1, in_size)
+            # Multiply with weights: (1, in_size) @ (in_size, out_size) = (1, out_size)
+            row_result = x_row @ w_flat  # Shape: (1, out_size)
+            output_rows.append(row_result)
+
+        # Stack all rows back together
+        # Convert to numpy arrays and stack them
+        numpy_rows = [row.to_numpy() for row in output_rows]
+        stacked = np.vstack(numpy_rows)  # Shape: (batch, out_size)
+
+        # Convert back to tensor
+        output = tensor_from_numpy(stacked, backend=self.backend, requires_grad=True)
+
         if self.bias is not None:
             output = output + self.bias.value
         return output
