@@ -115,16 +115,10 @@ class Linear(Module):
         """
         batch, in_size = x.shape
         ### BEGIN ASSIGN3_2
-        # Convert to numpy immediately to avoid tensor indexing issues
-        x_np = x.to_numpy()  # Shape: (batch, in_size)
-        w_np = self.weights.value.to_numpy()  # Shape: (in_size, out_size)
-
-        # Use numpy matrix multiplication which is reliable
-        output_np = x_np @ w_np  # Shape: (batch, out_size)
-
-        # Convert back to tensor
-        out = tensor_from_numpy(output_np, backend=self.backend, requires_grad=True)
-
+        # Use the exact hw2 pattern with explicit views
+        x_out = x.view(batch, in_size)
+        weights_out = self.weights.value.view(self.in_size, self.out_size)
+        out = (x_out @ weights_out).view(batch, self.out_size)
         if self.bias is not None:
             out = out + self.bias.value.view(1, self.out_size)
         return out
