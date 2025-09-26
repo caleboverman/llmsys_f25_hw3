@@ -86,9 +86,12 @@ class MultiHeadAttention(Module):
         """
         batch_size, seq_len, n_embd = x.shape
         ### BEGIN ASSIGN3_3
-        q_linear = self.q_projection(x)
-        k_linear = self.k_projection(x)
-        v_linear = self.v_projection(x)
+        # Linear expects (N, in_features); reshape (B, T, C) → (B*T, C)
+        x2d = x.view(batch_size * seq_len, n_embd)
+
+        q_linear = self.q_projection(x2d).view(batch_size, seq_len, n_embd)
+        k_linear = self.k_projection(x2d).view(batch_size, seq_len, n_embd)
+        v_linear = self.v_projection(x2d).view(batch_size, seq_len, n_embd)
 
         q = q_linear.view(batch_size, seq_len, self.n_head, self.attn_hidden_dim).transpose(1, 2)
         k = k_linear.view(batch_size, seq_len, self.n_head, self.attn_hidden_dim).transpose(1, 2)
@@ -97,11 +100,11 @@ class MultiHeadAttention(Module):
         kT = k.transpose(-1, -2)
         ### END ASSIGN3_3
         return q, kT, v
-    
+
     def self_attention(self, q, kT, v):
         """
         Compute self-attention: softmax((q @ kT) / sqrt(attn_hidden_dim)) @ v.
-        
+
         Args:
             q (Tensor): Query matrix of shape (batch_size, num_heads, seq_len, attn_hidden_dim)
             kT (Tensor): Transposed key matrix of shape (batch_size, num_heads, attn_hidden_dim, seq_len)
@@ -115,7 +118,7 @@ class MultiHeadAttention(Module):
         _, _, _, v_dim = v.shape
         assert q_dim == k_dim == v_dim
         result = None
-        
+
         ### BEGIN ASSIGN3_3
         scores = (q @ kT) / np.sqrt(self.attn_hidden_dim)
 
@@ -128,7 +131,9 @@ class MultiHeadAttention(Module):
         context = attn @ v
         context = context.transpose(1, 2)
         context = context.view(batch_size, queries_len, self.n_head * v_dim)
-        result = self.out_projection(context)
+        context2d = context.view(batch_size * queries_len, self.n_head * v_dim)
+        result2d = self.out_projection(context2d)
+        result = result2d.view(batch_size, queries_len, self.n_embd)
         ### END ASSIGN3_3
 
         return result
