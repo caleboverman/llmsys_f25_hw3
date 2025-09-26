@@ -91,16 +91,15 @@ class Linear(Module):
         """
         self.out_size = out_size
         ### BEGIN ASSIGN3_2
+        # Adapted from hw2 but with backend argument and bias boolean
         self.in_size = in_size
         self.backend = backend
-        bound = 1.0 / np.sqrt(in_size)
 
-        weights = rand((in_size, out_size), backend=backend) * 2 * bound - bound
-        self.weights = Parameter(weights)
+        # Use similar initialization to hw2 but with the backend parameter
+        self.weights = Parameter(rand((in_size, out_size), backend=backend))
 
         if bias:
-            bias_data = rand((out_size,), backend=backend) * 2 * bound - bound
-            self.bias = Parameter(bias_data)
+            self.bias = Parameter(rand((out_size,), backend=backend))
         else:
             self.bias = None
         ### END ASSIGN3_2
@@ -116,31 +115,12 @@ class Linear(Module):
         """
         batch, in_size = x.shape
         ### BEGIN ASSIGN3_2
-        # Workaround for CudaKernelOps matrix_multiply bug
-        # Flatten input to 2D, perform 2D-by-2D multiplication, then reshape back
-        x_flat = x.contiguous().view(batch * in_size)  # Shape: (batch * in_size,)
-        w_flat = self.weights.value.contiguous().view(in_size, self.out_size)  # Shape: (in_size, out_size)
-
-        # Perform matrix multiplication one row at a time to avoid batch dimension bug
-        output_rows = []
-        for b in range(batch):
-            # Extract one row of input: shape (in_size,)
-            x_row = x_flat[b * in_size : (b + 1) * in_size].view(1, in_size)  # Shape: (1, in_size)
-            # Multiply with weights: (1, in_size) @ (in_size, out_size) = (1, out_size)
-            row_result = x_row @ w_flat  # Shape: (1, out_size)
-            output_rows.append(row_result)
-
-        # Stack all rows back together
-        # Convert to numpy arrays and stack them
-        numpy_rows = [row.to_numpy() for row in output_rows]
-        stacked = np.vstack(numpy_rows)  # Shape: (batch, out_size)
-
-        # Convert back to tensor
-        output = tensor_from_numpy(stacked, backend=self.backend, requires_grad=True)
-
+        x_out = x.view(batch, in_size)
+        weights_out = self.weights.value.view(self.in_size, self.out_size)
+        out = (x_out @ weights_out).view(batch, self.out_size)
         if self.bias is not None:
-            output = output + self.bias.value
-        return output
+            out = out + self.bias.value.view(1, self.out_size)
+        return out
         ### END ASSIGN3_2
 
 
