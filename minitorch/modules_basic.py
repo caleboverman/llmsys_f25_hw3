@@ -115,9 +115,23 @@ class Linear(Module):
         """
         batch, in_size = x.shape
         ### BEGIN ASSIGN3_2
-        x_out = x.view(batch, in_size)
-        weights_out = self.weights.value.view(self.in_size, self.out_size)
-        out = (x_out @ weights_out).view(batch, self.out_size)
+        # Workaround for CudaKernelOps batch dimension bug
+        # Process one row at a time to avoid problematic batch × matrix multiplication
+        results = []
+        weights_reshaped = self.weights.value.view(self.in_size, self.out_size)
+
+        for i in range(batch):
+            # Extract one row: x[i] has shape (in_size,)
+            x_row = x[i].view(1, in_size)  # Reshape to (1, in_size)
+            # Single row multiplication: (1, in_size) @ (in_size, out_size) = (1, out_size)
+            row_result = x_row @ weights_reshaped
+            results.append(row_result)
+
+        # Stack all results back to (batch, out_size)
+        # Use numpy to stack, then convert back to tensor
+        stacked_numpy = np.vstack([result.to_numpy() for result in results])
+        out = tensor_from_numpy(stacked_numpy, backend=self.backend, requires_grad=True)
+
         if self.bias is not None:
             out = out + self.bias.value.view(1, self.out_size)
         return out
