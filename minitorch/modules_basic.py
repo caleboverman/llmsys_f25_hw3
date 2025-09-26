@@ -116,9 +116,11 @@ class Linear(Module):
         """
         batch, in_size = x.shape
         ### BEGIN ASSIGN3_2
-        output = x @ self.weights.value
+        x_reshaped = x.view(batch, in_size)
+        weights_reshaped = self.weights.value.view(self.in_size, self.out_size)
+        output = (x_reshaped @ weights_reshaped).view(batch, self.out_size)
         if self.bias is not None:
-            output = output + self.bias.value
+            output = output + self.bias.value.view(1, self.out_size)
         return output
         ### END ASSIGN3_2
 
