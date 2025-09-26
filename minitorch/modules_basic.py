@@ -47,13 +47,7 @@ class Embedding(Module):
         """
         bs, seq_len = x.shape
         ### BEGIN ASSIGN3_2
-        if not self.training or self.p_dropout <= 0.0:
-            return x
-
-        keep_prob = 1.0 - self.p_dropout
-        mask_np = np.random.binomial(1, keep_prob, size=tuple(x.shape)).astype(np.float32)
-        mask = tensor_from_numpy(mask_np, backend=x.backend if hasattr(x, 'backend') else x._tensor.backend)
-        return (x * mask) / keep_prob
+        raise NotImplementedError
         ### END ASSIGN3_2
 
     
@@ -77,7 +71,13 @@ class Dropout(Module):
             output : Tensor of shape (*)
         """
         ### BEGIN ASSIGN3_2
-        raise NotImplementedError
+        if not self.training or self.p_dropout <= 0.0:
+            return x
+
+        keep_prob = 1.0 - self.p_dropout
+        mask_np = np.random.binomial(1, keep_prob, size=tuple(x.shape)).astype(np.float32)
+        mask = tensor_from_numpy(mask_np, backend=x.backend if hasattr(x, 'backend') else x._tensor.backend)
+        return (x * mask) / keep_prob
         ### END ASSIGN3_2
 
 
