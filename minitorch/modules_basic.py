@@ -35,7 +35,7 @@ class Embedding(Module):
         ### BEGIN ASSIGN3_2
         W_np = np.random.randn(num_embeddings, embedding_dim).astype(np.float32)
         W = tensor_from_numpy(W_np, backend=backend)
-        self.weight = Parameter(W)
+        self.weights = Parameter(W)
         ### END ASSIGN3_2
     
     def forward(self, x: Tensor):
@@ -54,7 +54,7 @@ class Embedding(Module):
 
         # Flatten to 2D → (bs*seq_len, V)
         x_flat = x_one_hot.view(bs * seq_len, V)
-        W = self.weight.value.view(V, E)  # (V, E)
+        W = self.weights.value.view(V, E)  # (V, E)
 
         # Compute x_flat @ W via broadcasted multiply + sum to avoid backend 3D×2D matmul
         xb = x_flat.view(bs * seq_len, V, 1)   # (B*, V, 1)
