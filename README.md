@@ -55,6 +55,7 @@ Since CUDA 12.1 is available on your system, load it by running:
 ```bash
 module purge
 module load cuda-12.1
+module load cuda/12.4.0 # this actually works
 ```
 Verify the CUDA version:
 ```bash
