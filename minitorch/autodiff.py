@@ -101,9 +101,28 @@ def topological_sort(variable: Variable) -> Iterable[Variable]:
         Non-constant Variables in topological order starting from the right.
     """
     # BEGIN ASSIGN1_1
-    # TODO
-    
-    raise NotImplementedError("Task Autodiff Not Implemented Yet")
+    visited = []
+    result = []
+    stack = [(variable, False)]
+
+    while stack:
+        node, processed = stack.pop()
+
+        if node.is_constant():
+            continue
+
+        if processed:
+            if node.unique_id not in visited:
+                visited.append(node.unique_id)
+                result.append(node)
+        else:
+            if node.unique_id not in visited:
+                stack.append((node, True))
+                parents = [parent for parent in node.parents if not parent.is_constant()]
+                for parent in reversed(parents):
+                    stack.append((parent, False))
+
+    return reversed(result)
     # END ASSIGN1_1
 
 
@@ -119,9 +138,24 @@ def backpropagate(variable: Variable, deriv: Any) -> None:
     No return. Should write to its results to the derivative values of each leaf through `accumulate_derivative`.
     """
     # BEGIN ASSIGN1_1
-    # TODO
-   
-    raise NotImplementedError("Task Autodiff Not Implemented Yet")
+    topo_list = topological_sort(variable)
+    gradients = {variable.unique_id: deriv}
+
+    for node in topo_list:
+        if node.is_constant():
+            continue
+
+        gradient_out = gradients.get(node.unique_id, 0)
+
+        if node.is_leaf():
+            node.accumulate_derivative(gradient_out)
+            continue
+
+        for parent, derivative_parent in node.chain_rule(gradient_out):
+            if parent.is_constant():
+                continue
+            parent_id = parent.unique_id
+            gradients[parent_id] = gradients.get(parent_id, 0) + derivative_parent
     # END ASSIGN1_1
 
 
