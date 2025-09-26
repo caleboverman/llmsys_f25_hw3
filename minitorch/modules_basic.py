@@ -116,15 +116,7 @@ class Linear(Module):
         """
         batch, in_size = x.shape
         ### BEGIN ASSIGN3_2
-        results = []
-        for out_dim in range(self.out_size):
-            w_col = self.weights.value[:, out_dim:out_dim+1]
-            col_result = x @ w_col
-            results.append(col_result)
-
-        combined_data = np.concatenate([result.to_numpy() for result in results], axis=1)
-        output = tensor_from_numpy(combined_data, backend=self.backend, requires_grad=True)
-
+        output = x @ self.weights.value
         if self.bias is not None:
             output = output + self.bias.value
         return output
