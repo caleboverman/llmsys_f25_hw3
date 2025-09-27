@@ -92,48 +92,43 @@ class MultiHeadAttention(Module):
 
         x2d = x.view(batch_size * seq_len, n_embd)
         print(f"DEBUG QKV: x2d shape: {x2d.shape}")
-        print(f"DEBUG QKV: x2d first values: {x2d.to_numpy()[0, :5]}")
+        print(f"DEBUG QKV: x2d[0,:8]: {x2d.to_numpy()[0, :8]}")
 
-        # Inspect projection weights
         print(f"DEBUG QKV: q_projection weights shape: {self.q_projection.weights.value.shape}")
-        print(f"DEBUG QKV: q_projection weights sample: {self.q_projection.weights.value.to_numpy()[:5, :5]}")
-        print(f"DEBUG QKV: k_projection weights sample: {self.k_projection.weights.value.to_numpy()[:5, :5]}")
-        print(f"DEBUG QKV: v_projection weights sample: {self.v_projection.weights.value.to_numpy()[:5, :5]}")
+        print(f"DEBUG QKV: k_projection weights shape: {self.k_projection.weights.value.shape}")
+        print(f"DEBUG QKV: v_projection weights shape: {self.v_projection.weights.value.shape}")
+        print(f"DEBUG QKV: q_projection weights[0,:8]: {self.q_projection.weights.value.to_numpy()[0, :8]}")
 
-        # Use Linear layers on the flattened input (weights are stored as (in, out))
-        q_linear = self.q_projection(x2d).view(batch_size, seq_len, n_embd)
-        print(f"DEBUG QKV: q_linear shape: {q_linear.shape}")
-        print(f"DEBUG QKV: q_linear first values: {q_linear.to_numpy()[0, 0, :5]}")
-        print(f"DEBUG QKV: q_linear range: [{q_linear.to_numpy().min():.6f}, {q_linear.to_numpy().max():.6f}]")
+        q2d = self.q_projection(x2d)
+        k2d = self.k_projection(x2d)
+        v2d = self.v_projection(x2d)
 
-        k_linear = self.k_projection(x2d).view(batch_size, seq_len, n_embd)
-        print(f"DEBUG QKV: k_linear shape: {k_linear.shape}")
-        print(f"DEBUG QKV: k_linear first values: {k_linear.to_numpy()[0, 0, :5]}")
-        print(f"DEBUG QKV: k_linear range: [{k_linear.to_numpy().min():.6f}, {k_linear.to_numpy().max():.6f}]")
+        print(f"DEBUG QKV: q2d shape: {q2d.shape}")
+        print(f"DEBUG QKV: q2d[0,:8]: {q2d.to_numpy()[0, :8]}")
+        print(f"DEBUG QKV: k2d[0,:8]: {k2d.to_numpy()[0, :8]}")
+        print(f"DEBUG QKV: v2d[0,:8]: {v2d.to_numpy()[0, :8]}")
 
-        v_linear = self.v_projection(x2d).view(batch_size, seq_len, n_embd)
-        print(f"DEBUG QKV: v_linear shape: {v_linear.shape}")
-        print(f"DEBUG QKV: v_linear first values: {v_linear.to_numpy()[0, 0, :5]}")
-        print(f"DEBUG QKV: v_linear range: [{v_linear.to_numpy().min():.6f}, {v_linear.to_numpy().max():.6f}]")
+        q_linear = q2d.view(batch_size, seq_len, n_embd)
+        k_linear = k2d.view(batch_size, seq_len, n_embd)
+        v_linear = v2d.view(batch_size, seq_len, n_embd)
+
+        print(f"DEBUG QKV: q_linear[0,0,:8]: {q_linear.to_numpy()[0, 0, :8]}")
+        print(f"DEBUG QKV: k_linear[0,0,:8]: {k_linear.to_numpy()[0, 0, :8]}")
+        print(f"DEBUG QKV: v_linear[0,0,:8]: {v_linear.to_numpy()[0, 0, :8]}")
 
         # Reshape and permute for multi-head attention
         print(f"DEBUG QKV: self.n_head = {self.n_head}, self.attn_hidden_dim = {self.attn_hidden_dim}")
 
         q = q_linear.view(batch_size, seq_len, self.n_head, self.attn_hidden_dim).permute(0, 2, 1, 3).contiguous()
-        print(f"DEBUG QKV: q after reshape/permute shape: {q.shape}")
-        print(f"DEBUG QKV: q after reshape/permute first values: {q.to_numpy()[0, 0, 0, :5]}")
-
         k = k_linear.view(batch_size, seq_len, self.n_head, self.attn_hidden_dim).permute(0, 2, 1, 3).contiguous()
-        print(f"DEBUG QKV: k after reshape/permute shape: {k.shape}")
-        print(f"DEBUG QKV: k after reshape/permute first values: {k.to_numpy()[0, 0, 0, :5]}")
-
         v = v_linear.view(batch_size, seq_len, self.n_head, self.attn_hidden_dim).permute(0, 2, 1, 3).contiguous()
-        print(f"DEBUG QKV: v after reshape/permute shape: {v.shape}")
-        print(f"DEBUG QKV: v after reshape/permute first values: {v.to_numpy()[0, 0, 0, :5]}")
+
+        print(f"DEBUG QKV: q[0,0,0,:8]: {q.to_numpy()[0, 0, 0, :8]}")
+        print(f"DEBUG QKV: k[0,0,0,:8]: {k.to_numpy()[0, 0, 0, :8]}")
+        print(f"DEBUG QKV: v[0,0,0,:8]: {v.to_numpy()[0, 0, 0, :8]}")
 
         kT = k.permute(0, 1, 3, 2).contiguous()
-        print(f"DEBUG QKV: kT shape: {kT.shape}")
-        print(f"DEBUG QKV: kT first values: {kT.to_numpy()[0, 0, :5, 0]}")
+        print(f"DEBUG QKV: kT[0,0,:8,0]: {kT.to_numpy()[0, 0, :8, 0]}")
         ### END ASSIGN3_3
         return q, kT, v
 
@@ -193,10 +188,8 @@ class MultiHeadAttention(Module):
 
         # Apply softmax to get attention weights
         attn = softmax(scores, dim=3)
-        print(f"DEBUG: attn shape: {attn.shape}")
-        print(f"DEBUG: attn first row: {attn.to_numpy()[0, 0, 0, :5]}")
-        print(f"DEBUG: attn range: [{attn.to_numpy().min():.6f}, {attn.to_numpy().max():.6f}]")
-        print(f"DEBUG: attn sum along last dim (should be ~1): {attn.to_numpy().sum(axis=-1)[0, 0, :3]}")
+        print(f"DEBUG: attn[0,0,0,:8]: {attn.to_numpy()[0, 0, 0, :8]}")
+        print(f"DEBUG: attn sums: {attn.to_numpy().sum(axis=-1)[0, 0, :8]}")
 
         # Apply dropout
         attn = self.dropout(attn)
@@ -205,16 +198,13 @@ class MultiHeadAttention(Module):
 
         # Compute weighted sum of values
         context = attn @ v
-        print(f"DEBUG: context shape: {context.shape}")
-        print(f"DEBUG: context first values: {context.to_numpy()[0, 0, 0, :5]}")
-        print(f"DEBUG: context range: [{context.to_numpy().min():.6f}, {context.to_numpy().max():.6f}]")
+        print(f"DEBUG: context[0,0,0,:8]: {context.to_numpy()[0, 0, 0, :8]}")
 
         # Reshape for output projection: (B, H, T, D) -> (B, T, H, D) -> (B, T, n_embd)
         context = context.permute(0, 2, 1, 3).contiguous()
         print(f"DEBUG: context after permute shape: {context.shape}")
         context = context.view(batch_size, queries_len, self.n_embd)
-        print(f"DEBUG: context after view shape: {context.shape}")
-        print(f"DEBUG: context after reshape first values: {context.to_numpy()[0, 0, :5]}")
+        print(f"DEBUG: context reshaped[0,0,:8]: {context.to_numpy()[0, 0, :8]}")
 
         # Apply output projection
         context2d = context.view(batch_size * queries_len, self.n_embd)
@@ -226,10 +216,8 @@ class MultiHeadAttention(Module):
         print(f"DEBUG: out_projection weights sample: {self.out_projection.weights.value.to_numpy()[:5, :5]}")
 
         result2d = self.out_projection(context2d)
-        print(f"DEBUG: result2d computation complete:")
-        print(f"  result2d shape: {result2d.shape}")
-        print(f"  result2d first values: {result2d.to_numpy()[0, :5]}")
-        print(f"  result2d range: [{result2d.to_numpy().min():.6f}, {result2d.to_numpy().max():.6f}]")
+        print(f"DEBUG: result2d shape: {result2d.shape}")
+        print(f"DEBUG: result2d[0,:8]: {result2d.to_numpy()[0, :8]}")
 
         result = result2d.view(batch_size, queries_len, self.n_embd)
         print(f"DEBUG: final result shape: {result.shape}")
