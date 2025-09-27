@@ -201,6 +201,19 @@ class MultiHeadAttention(Module):
                 print("[MHA DEBUG] result[0,0,:8] =>", res_np[0, 0, :8])
             except Exception as e:
                 print("[MHA DEBUG] debug5 result error:", e)
+        # --- DEBUG 6: manual out-projection check (both orientations) for qi=0 ---
+        if (batch_size == 1) and (num_head == 1) and (queries_len == 32):
+            try:
+                # fetch context row and weight matrix
+                ctx2d_np = context2d.to_numpy()  # shape (B*T, C)
+                W = self.out_projection.weights.value.to_numpy()  # expect (C_in, C_out)
+                # compute both orientations
+                out_nm = ctx2d_np[0] @ W                      # (C,)
+                out_tm = W.T @ ctx2d_np[0]                    # (C,)
+                print("[MHA DEBUG] manual ctx@W  [:8] =>", out_nm[:8])
+                print("[MHA DEBUG] manual W^T@ctx[:8] =>", out_tm[:8])
+            except Exception as e:
+                print("[MHA DEBUG] debug6 manual mm error:", e)
         ### END ASSIGN3_3
 
         return result
