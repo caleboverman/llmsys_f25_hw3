@@ -88,16 +88,24 @@ class MultiHeadAttention(Module):
         ### BEGIN ASSIGN3_3
         # Linear expects (N, in_features); reshape (B, T, C) → (B*T, C)
         x2d = x.view(batch_size * seq_len, n_embd)
+        import numpy as np
+        print(f"DEBUG: x2d shape={x2d.shape}, range=[{x2d.to_numpy().min():.6f}, {x2d.to_numpy().max():.6f}], hasNaN={np.isnan(x2d.to_numpy()).any()}")
 
         q_linear = self.q_projection(x2d).view(batch_size, seq_len, n_embd)
+        print(f"DEBUG: q_linear hasNaN={np.isnan(q_linear.to_numpy()).any()}")
         k_linear = self.k_projection(x2d).view(batch_size, seq_len, n_embd)
+        print(f"DEBUG: k_linear hasNaN={np.isnan(k_linear.to_numpy()).any()}")
         v_linear = self.v_projection(x2d).view(batch_size, seq_len, n_embd)
+        print(f"DEBUG: v_linear hasNaN={np.isnan(v_linear.to_numpy()).any()}")
 
         q = q_linear.view(batch_size, seq_len, self.n_head, self.attn_hidden_dim).permute(0, 2, 1, 3)
         k = k_linear.view(batch_size, seq_len, self.n_head, self.attn_hidden_dim).permute(0, 2, 1, 3)
         v = v_linear.view(batch_size, seq_len, self.n_head, self.attn_hidden_dim).permute(0, 2, 1, 3)
 
         kT = k.permute(0, 1, 3, 2)
+        print(f"DEBUG: q shape={q.shape}, hasNaN={np.isnan(q.to_numpy()).any()}")
+        print(f"DEBUG: kT shape={kT.shape}, hasNaN={np.isnan(kT.to_numpy()).any()}")
+        print(f"DEBUG: v shape={v.shape}, hasNaN={np.isnan(v.to_numpy()).any()}")
         ### END ASSIGN3_3
         return q, kT, v
 
@@ -121,20 +129,29 @@ class MultiHeadAttention(Module):
 
         ### BEGIN ASSIGN3_3
         scores = (q @ kT) / (self.attn_hidden_dim ** 0.5)
+        import numpy as np
+        print(f"DEBUG: scores shape={scores.shape}, hasNaN={np.isnan(scores.to_numpy()).any()}, range=[{scores.to_numpy().min():.6f}, {scores.to_numpy().max():.6f}]")
 
         if self.causal:
             mask = self.create_causal_mask(queries_len)  # (1,1,T,T) broadcasts to (B,H,T,T)
+            print(f"DEBUG: mask shape={mask.shape}, hasNaN={np.isnan(mask.to_numpy()).any()}, range=[{mask.to_numpy().min():.6f}, {mask.to_numpy().max():.6f}]")
             scores = scores + mask
+            print(f"DEBUG: scores+mask hasNaN={np.isnan(scores.to_numpy()).any()}, range=[{scores.to_numpy().min():.6f}, {scores.to_numpy().max():.6f}]")
 
         attn = softmax(scores, dim=-1)
+        print(f"DEBUG: attn hasNaN={np.isnan(attn.to_numpy()).any()}")
         attn = self.dropout(attn)
+        print(f"DEBUG: attn after dropout hasNaN={np.isnan(attn.to_numpy()).any()}")
         context = attn @ v
+        print(f"DEBUG: context hasNaN={np.isnan(context.to_numpy()).any()}")
         context = context.permute(0, 2, 1, 3)
         context = context.contiguous()
         context = context.view(batch_size, queries_len, self.n_embd)
         context2d = context.view(batch_size * queries_len, self.n_embd)
         result2d = self.out_projection(context2d)
+        print(f"DEBUG: result2d hasNaN={np.isnan(result2d.to_numpy()).any()}")
         result = result2d.view(batch_size, queries_len, self.n_embd)
+        print(f"DEBUG: final result hasNaN={np.isnan(result.to_numpy()).any()}")
         ### END ASSIGN3_3
 
         return result
