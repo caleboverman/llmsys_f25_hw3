@@ -120,23 +120,35 @@ class MultiHeadAttention(Module):
 
         ### BEGIN ASSIGN3_3
         scores = (q @ kT) / (self.attn_hidden_dim ** 0.5)
+        print(f"DEBUG: scores hasNaN={np.isnan(scores.to_numpy()).any()}")
 
         if self.causal:
             mask = self.create_causal_mask(queries_len)  # (1,1,T,T) broadcasts to (B,H,T,T)
+            print(f"DEBUG: original mask range=[{mask.to_numpy().min():.6f}, {mask.to_numpy().max():.6f}]")
             mask_numpy = mask.to_numpy()
             mask_numpy = np.clip(mask_numpy, -1e9, 0.0)
             mask = tensor_from_numpy(mask_numpy, backend=self.backend)
+            print(f"DEBUG: clipped mask range=[{mask.to_numpy().min():.6f}, {mask.to_numpy().max():.6f}]")
             scores = scores + mask
+            print(f"DEBUG: scores+mask hasNaN={np.isnan(scores.to_numpy()).any()}")
 
         attn = softmax(scores, dim=-1)
+        print(f"DEBUG: attn after softmax hasNaN={np.isnan(attn.to_numpy()).any()}")
+        if np.isnan(attn.to_numpy()).any():
+            print(f"DEBUG: scores before softmax range=[{scores.to_numpy().min():.6f}, {scores.to_numpy().max():.6f}]")
+            print(f"DEBUG: scores contains inf: {np.isinf(scores.to_numpy()).any()}")
         attn = self.dropout(attn)
+        print(f"DEBUG: attn after dropout hasNaN={np.isnan(attn.to_numpy()).any()}")
         context = attn @ v
+        print(f"DEBUG: context hasNaN={np.isnan(context.to_numpy()).any()}")
         context = context.permute(0, 2, 1, 3)
         context = context.contiguous()
         context = context.view(batch_size, queries_len, self.n_embd)
         context2d = context.view(batch_size * queries_len, self.n_embd)
         result2d = self.out_projection(context2d)
+        print(f"DEBUG: result2d hasNaN={np.isnan(result2d.to_numpy()).any()}")
         result = result2d.view(batch_size, queries_len, self.n_embd)
+        print(f"DEBUG: final result hasNaN={np.isnan(result.to_numpy()).any()}")
         ### END ASSIGN3_3
 
         return result
