@@ -227,11 +227,17 @@ class MultiHeadAttention(Module):
         print(f"DEBUG: out_projection weights shape: {out_weights.shape}")
         print(f"DEBUG: out_projection weights sample: {out_weights.to_numpy()[:5, :5]}")
 
-        result2d = context2d @ out_weights
+        result_direct = context2d @ out_weights
+        result_transposed = context2d @ out_weights.permute(1, 0)
         if self.out_projection.bias is not None:
-            result2d = result2d + self.out_projection.bias.value
-        print(f"DEBUG: result2d shape: {result2d.shape}")
-        print(f"DEBUG: result2d[0,:8]: {result2d.to_numpy()[0, :8]}")
+            result_direct = result_direct + self.out_projection.bias.value
+            result_transposed = result_transposed + self.out_projection.bias.value
+
+        print(f"DEBUG: result_direct[0,:8]: {result_direct.to_numpy()[0, :8]}")
+        print(f"DEBUG: result_transposed[0,:8]: {result_transposed.to_numpy()[0, :8]}")
+
+        # Choose direct orientation by default (will adjust if mismatch)
+        result2d = result_direct
 
         result = result2d.view(batch_size, queries_len, self.n_embd)
         print(f"DEBUG: final result shape: {result.shape}")
