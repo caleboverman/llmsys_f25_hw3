@@ -74,7 +74,7 @@ class MultiHeadAttention(Module):
     def project_to_query_key_value(self, x):
         """
         Project input embeddings to Query, Key, and Value matrices for self-attention.
-        
+
         Args:
             x (Tensor): Input embeddings of shape (batch_size, seq_len, n_embd)
 
@@ -86,18 +86,52 @@ class MultiHeadAttention(Module):
         """
         batch_size, seq_len, n_embd = x.shape
         ### BEGIN ASSIGN3_3
+        print(f"DEBUG QKV: Input x shape: {x.shape}")
+        print(f"DEBUG QKV: Input x first values: {x.to_numpy()[0, 0, :5]}")
+        print(f"DEBUG QKV: Input x range: [{x.to_numpy().min():.6f}, {x.to_numpy().max():.6f}]")
+
         x2d = x.view(batch_size * seq_len, n_embd)
+        print(f"DEBUG QKV: x2d shape: {x2d.shape}")
+        print(f"DEBUG QKV: x2d first values: {x2d.to_numpy()[0, :5]}")
+
+        # Check projection weights
+        print(f"DEBUG QKV: q_projection weights shape: {self.q_projection.weights.value.shape}")
+        print(f"DEBUG QKV: q_projection weights sample: {self.q_projection.weights.value.to_numpy()[:5, :5]}")
+        print(f"DEBUG QKV: k_projection weights sample: {self.k_projection.weights.value.to_numpy()[:5, :5]}")
+        print(f"DEBUG QKV: v_projection weights sample: {self.v_projection.weights.value.to_numpy()[:5, :5]}")
 
         # Use the Linear layers directly (they already implement x @ W with correct orientation)
         q_linear = self.q_projection(x2d).view(batch_size, seq_len, n_embd)
+        print(f"DEBUG QKV: q_linear shape: {q_linear.shape}")
+        print(f"DEBUG QKV: q_linear first values: {q_linear.to_numpy()[0, 0, :5]}")
+        print(f"DEBUG QKV: q_linear range: [{q_linear.to_numpy().min():.6f}, {q_linear.to_numpy().max():.6f}]")
+
         k_linear = self.k_projection(x2d).view(batch_size, seq_len, n_embd)
+        print(f"DEBUG QKV: k_linear shape: {k_linear.shape}")
+        print(f"DEBUG QKV: k_linear first values: {k_linear.to_numpy()[0, 0, :5]}")
+
         v_linear = self.v_projection(x2d).view(batch_size, seq_len, n_embd)
+        print(f"DEBUG QKV: v_linear shape: {v_linear.shape}")
+        print(f"DEBUG QKV: v_linear first values: {v_linear.to_numpy()[0, 0, :5]}")
+
+        # Reshape and permute for multi-head attention
+        print(f"DEBUG QKV: self.n_head = {self.n_head}, self.attn_hidden_dim = {self.attn_hidden_dim}")
 
         q = q_linear.view(batch_size, seq_len, self.n_head, self.attn_hidden_dim).permute(0, 2, 1, 3).contiguous()
+        print(f"DEBUG QKV: q after reshape/permute shape: {q.shape}")
+        print(f"DEBUG QKV: q after reshape/permute first values: {q.to_numpy()[0, 0, 0, :5]}")
+
         k = k_linear.view(batch_size, seq_len, self.n_head, self.attn_hidden_dim).permute(0, 2, 1, 3).contiguous()
+        print(f"DEBUG QKV: k after reshape/permute shape: {k.shape}")
+        print(f"DEBUG QKV: k after reshape/permute first values: {k.to_numpy()[0, 0, 0, :5]}")
+
         v = v_linear.view(batch_size, seq_len, self.n_head, self.attn_hidden_dim).permute(0, 2, 1, 3).contiguous()
+        print(f"DEBUG QKV: v after reshape/permute shape: {v.shape}")
+        print(f"DEBUG QKV: v after reshape/permute first values: {v.to_numpy()[0, 0, 0, :5]}")
 
         kT = k.permute(0, 1, 3, 2).contiguous()
+        print(f"DEBUG QKV: kT shape: {kT.shape}")
+        print(f"DEBUG QKV: kT first values: {kT.to_numpy()[0, 0, :5, 0]}")
         ### END ASSIGN3_3
         return q, kT, v
 
@@ -120,40 +154,84 @@ class MultiHeadAttention(Module):
         result = None
 
         ### BEGIN ASSIGN3_3
+        print(f"DEBUG: Input tensor shapes - q: {q.shape}, kT: {kT.shape}, v: {v.shape}")
+        print(f"DEBUG: self.attn_hidden_dim: {self.attn_hidden_dim}")
+        print(f"DEBUG: q sample values: {q.to_numpy()[0, 0, 0, :5]}")
+        print(f"DEBUG: kT sample values: {kT.to_numpy()[0, 0, :5, 0]}")
+        print(f"DEBUG: v sample values: {v.to_numpy()[0, 0, 0, :5]}")
+
         # Compute scaled dot-product attention scores
         scores = q @ kT
+        print(f"DEBUG: scores shape: {scores.shape}")
+        print(f"DEBUG: scores before scaling: {scores.to_numpy()[0, 0, 0, :5]}")
+        print(f"DEBUG: scores range before scaling: [{scores.to_numpy().min():.6f}, {scores.to_numpy().max():.6f}]")
+
         scale = tensor_from_numpy(
             np.array(1.0 / np.sqrt(self.attn_hidden_dim), dtype=datatype),
             backend=self.backend
         )
+        print(f"DEBUG: scale value: {scale.to_numpy()}")
         scores = scores * scale
+        print(f"DEBUG: scores after scaling: {scores.to_numpy()[0, 0, 0, :5]}")
+        print(f"DEBUG: scores range after scaling: [{scores.to_numpy().min():.6f}, {scores.to_numpy().max():.6f}]")
 
         # Apply causal mask if needed
         if self.causal:
             mask = self.create_causal_mask(queries_len)
+            print(f"DEBUG: mask shape: {mask.shape}")
+            print(f"DEBUG: original mask sample: {mask.to_numpy()[0, 0, :3, :3]}")
+            print(f"DEBUG: original mask range: [{mask.to_numpy().min():.6f}, {mask.to_numpy().max():.6f}]")
+
             # Clamp mask values to prevent numerical issues
             mask_np = mask.to_numpy()
             mask_np = np.where(mask_np < -1e9, -1e9, mask_np)
             mask = tensor_from_numpy(mask_np, backend=self.backend)
+            print(f"DEBUG: clamped mask range: [{mask.to_numpy().min():.6f}, {mask.to_numpy().max():.6f}]")
+
             scores = scores + mask
+            print(f"DEBUG: scores+mask first row: {scores.to_numpy()[0, 0, 0, :5]}")
+            print(f"DEBUG: scores+mask range: [{scores.to_numpy().min():.6f}, {scores.to_numpy().max():.6f}]")
 
         # Apply softmax to get attention weights
         attn = softmax(scores, dim=3)
+        print(f"DEBUG: attn shape: {attn.shape}")
+        print(f"DEBUG: attn first row: {attn.to_numpy()[0, 0, 0, :5]}")
+        print(f"DEBUG: attn range: [{attn.to_numpy().min():.6f}, {attn.to_numpy().max():.6f}]")
+        print(f"DEBUG: attn sum along last dim (should be ~1): {attn.to_numpy().sum(axis=-1)[0, 0, :3]}")
 
         # Apply dropout
         attn = self.dropout(attn)
+        print(f"DEBUG: attn after dropout first row: {attn.to_numpy()[0, 0, 0, :5]}")
+        print(f"DEBUG: attn after dropout range: [{attn.to_numpy().min():.6f}, {attn.to_numpy().max():.6f}]")
 
         # Compute weighted sum of values
         context = attn @ v
+        print(f"DEBUG: context shape: {context.shape}")
+        print(f"DEBUG: context first values: {context.to_numpy()[0, 0, 0, :5]}")
+        print(f"DEBUG: context range: [{context.to_numpy().min():.6f}, {context.to_numpy().max():.6f}]")
 
         # Reshape for output projection: (B, H, T, D) -> (B, T, H, D) -> (B, T, n_embd)
         context = context.permute(0, 2, 1, 3).contiguous()
+        print(f"DEBUG: context after permute shape: {context.shape}")
         context = context.view(batch_size, queries_len, self.n_embd)
+        print(f"DEBUG: context after view shape: {context.shape}")
+        print(f"DEBUG: context after reshape first values: {context.to_numpy()[0, 0, :5]}")
 
         # Apply output projection
         context2d = context.view(batch_size * queries_len, self.n_embd)
+        print(f"DEBUG: context2d shape: {context2d.shape}")
+        print(f"DEBUG: context2d first values: {context2d.to_numpy()[0, :5]}")
+        print(f"DEBUG: context2d range: [{context2d.to_numpy().min():.6f}, {context2d.to_numpy().max():.6f}]")
+
         result2d = self.out_projection(context2d)
+        print(f"DEBUG: result2d shape: {result2d.shape}")
+        print(f"DEBUG: result2d first values: {result2d.to_numpy()[0, :5]}")
+        print(f"DEBUG: result2d range: [{result2d.to_numpy().min():.6f}, {result2d.to_numpy().max():.6f}]")
+
         result = result2d.view(batch_size, queries_len, self.n_embd)
+        print(f"DEBUG: final result shape: {result.shape}")
+        print(f"DEBUG: final result first values: {result.to_numpy()[0, 0, :5]}")
+        print(f"DEBUG: final result range: [{result.to_numpy().min():.6f}, {result.to_numpy().max():.6f}]")
         ### END ASSIGN3_3
 
         return result
@@ -161,7 +239,7 @@ class MultiHeadAttention(Module):
     def forward(self, x):
         """
         Compute multi-head attention with optional causal masking.
-        
+
         Args:
             x (Tensor): Input tensor of shape (batch_size, seq_len, n_embd)
 
@@ -170,8 +248,28 @@ class MultiHeadAttention(Module):
         """
         batch_size, seq_len, n_embd = x.shape
         ### BEGIN ASSIGN3_3
+        print(f"DEBUG FORWARD: Input x shape: {x.shape}")
+        print(f"DEBUG FORWARD: Input x first values: {x.to_numpy()[0, 0, :5]}")
+        print(f"DEBUG FORWARD: Input x range: [{x.to_numpy().min():.6f}, {x.to_numpy().max():.6f}]")
+        print(f"DEBUG FORWARD: self.n_embd={self.n_embd}, self.n_head={self.n_head}, self.attn_hidden_dim={self.attn_hidden_dim}")
+        print(f"DEBUG FORWARD: self.causal={self.causal}")
+
+        print("=" * 50)
+        print("CALLING project_to_query_key_value")
+        print("=" * 50)
         q, kT, v = self.project_to_query_key_value(x)
+
+        print("=" * 50)
+        print("CALLING self_attention")
+        print("=" * 50)
         out = self.self_attention(q, kT, v)
+
+        print("=" * 50)
+        print("FORWARD COMPLETE")
+        print("=" * 50)
+        print(f"DEBUG FORWARD: Output shape: {out.shape}")
+        print(f"DEBUG FORWARD: Output first values: {out.to_numpy()[0, 0, :5]}")
+        print(f"DEBUG FORWARD: Output range: [{out.to_numpy().min():.6f}, {out.to_numpy().max():.6f}]")
         return out
         ### END ASSIGN3_3
 
