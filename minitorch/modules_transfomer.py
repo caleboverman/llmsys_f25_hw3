@@ -120,27 +120,37 @@ class MultiHeadAttention(Module):
         result = None
 
         ### BEGIN ASSIGN3_3
-        inv_sqrt_d = 1.0 / np.sqrt(self.attn_hidden_dim)
-        scores = (q @ kT) * inv_sqrt_d  # (B, H, T, T)
+        # Compute scaled dot-product attention scores
+        scores = q @ kT
+        scale = tensor_from_numpy(
+            np.array(1.0 / np.sqrt(self.attn_hidden_dim), dtype=datatype),
+            backend=self.backend
+        )
+        scores = scores * scale
 
-        # 2) Causal mask (use as-is; no clamping)
+        # Apply causal mask if needed
         if self.causal:
-            mask = self.create_causal_mask(queries_len)  # (1, 1, T, T), broadcast to (B, H, T, T)
+            mask = self.create_causal_mask(queries_len)
+            # Clamp mask values to prevent numerical issues
+            mask_np = mask.to_numpy()
+            mask_np = np.where(mask_np < -1e9, -1e9, mask_np)
+            mask = tensor_from_numpy(mask_np, backend=self.backend)
             scores = scores + mask
 
-        # 3) Softmax along keys dim (dim=3 here)
+        # Apply softmax to get attention weights
         attn = softmax(scores, dim=3)
 
-        # 4) Dropout on attention weights
+        # Apply dropout
         attn = self.dropout(attn)
 
-        # 5) Attention * values
-        context = attn @ v  # (B, H, T, D)
+        # Compute weighted sum of values
+        context = attn @ v
 
-        # 6) Bring heads together and project out
-        context = context.permute(0, 2, 1, 3).contiguous()           # (B, T, H, D)
-        context = context.view(batch_size, queries_len, self.n_embd) # (B, T, C=n_embd)
+        # Reshape for output projection: (B, H, T, D) -> (B, T, H, D) -> (B, T, n_embd)
+        context = context.permute(0, 2, 1, 3).contiguous()
+        context = context.view(batch_size, queries_len, self.n_embd)
 
+        # Apply output projection
         context2d = context.view(batch_size * queries_len, self.n_embd)
         result2d = self.out_projection(context2d)
         result = result2d.view(batch_size, queries_len, self.n_embd)
