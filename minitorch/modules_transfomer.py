@@ -90,51 +90,32 @@ class MultiHeadAttention(Module):
         print(f"DEBUG QKV: Input x first values: {x.to_numpy()[0, 0, :5]}")
         print(f"DEBUG QKV: Input x range: [{x.to_numpy().min():.6f}, {x.to_numpy().max():.6f}]")
 
-        x2d = x.view(batch_size * seq_len, n_embd)
-        print(f"DEBUG QKV: x2d shape: {x2d.shape}")
-        print(f"DEBUG QKV: x2d first values: {x2d.to_numpy()[0, :5]}")
-
         # Inspect projection weights
         print(f"DEBUG QKV: q_projection weights shape: {self.q_projection.weights.value.shape}")
         print(f"DEBUG QKV: q_projection weights sample: {self.q_projection.weights.value.to_numpy()[:5, :5]}")
         print(f"DEBUG QKV: k_projection weights sample: {self.k_projection.weights.value.to_numpy()[:5, :5]}")
         print(f"DEBUG QKV: v_projection weights sample: {self.v_projection.weights.value.to_numpy()[:5, :5]}")
 
-        # PyTorch saves linear weights as (out_features, in_features). Transform to (in, out).
-        q_weights_T = self.q_projection.weights.value.permute(1, 0).contiguous()
-        k_weights_T = self.k_projection.weights.value.permute(1, 0).contiguous()
-        v_weights_T = self.v_projection.weights.value.permute(1, 0).contiguous()
+        # Rely on Linear modules directly (they already handle arbitrary leading dims)
+        q_linear = self.q_projection(x)
+        print(f"DEBUG QKV: q_linear shape: {q_linear.shape}")
+        print(f"DEBUG QKV: q_linear first values: {q_linear.to_numpy()[0, 0, :5]}")
+        print(f"DEBUG QKV: q_linear range: [{q_linear.to_numpy().min():.6f}, {q_linear.to_numpy().max():.6f}]")
 
-        q_bias = None if self.q_projection.bias is None else self.q_projection.bias.value
-        k_bias = None if self.k_projection.bias is None else self.k_projection.bias.value
-        v_bias = None if self.v_projection.bias is None else self.v_projection.bias.value
+        k_linear = self.k_projection(x)
+        print(f"DEBUG QKV: k_linear shape: {k_linear.shape}")
+        print(f"DEBUG QKV: k_linear first values: {k_linear.to_numpy()[0, 0, :5]}")
+        print(f"DEBUG QKV: k_linear range: [{k_linear.to_numpy().min():.6f}, {k_linear.to_numpy().max():.6f}]")
 
-        q_linear = (x2d @ q_weights_T)
-        if q_bias is not None:
-            q_linear = q_linear + q_bias
-        q_linear = q_linear.view(batch_size, seq_len, n_embd)
-        print(f"DEBUG QKV: q_linear computation complete")
-        print(f"  q_linear shape: {q_linear.shape}")
-        print(f"  q_linear first values: {q_linear.to_numpy()[0, 0, :5]}")
-        print(f"  q_linear range: [{q_linear.to_numpy().min():.6f}, {q_linear.to_numpy().max():.6f}]")
+        v_linear = self.v_projection(x)
+        print(f"DEBUG QKV: v_linear shape: {v_linear.shape}")
+        print(f"DEBUG QKV: v_linear first values: {v_linear.to_numpy()[0, 0, :5]}")
+        print(f"DEBUG QKV: v_linear range: [{v_linear.to_numpy().min():.6f}, {v_linear.to_numpy().max():.6f}]")
 
-        k_linear = (x2d @ k_weights_T)
-        if k_bias is not None:
-            k_linear = k_linear + k_bias
-        k_linear = k_linear.view(batch_size, seq_len, n_embd)
-        print(f"DEBUG QKV: k_linear computation complete")
-        print(f"  k_linear shape: {k_linear.shape}")
-        print(f"  k_linear first values: {k_linear.to_numpy()[0, 0, :5]}")
-        print(f"  k_linear range: [{k_linear.to_numpy().min():.6f}, {k_linear.to_numpy().max():.6f}]")
-
-        v_linear = (x2d @ v_weights_T)
-        if v_bias is not None:
-            v_linear = v_linear + v_bias
-        v_linear = v_linear.view(batch_size, seq_len, n_embd)
-        print(f"DEBUG QKV: v_linear computation complete")
-        print(f"  v_linear shape: {v_linear.shape}")
-        print(f"  v_linear first values: {v_linear.to_numpy()[0, 0, :5]}")
-        print(f"  v_linear range: [{v_linear.to_numpy().min():.6f}, {v_linear.to_numpy().max():.6f}]")
+        # Ensure we have contiguous buffers before reshaping for heads
+        q_linear = q_linear.contiguous()
+        k_linear = k_linear.contiguous()
+        v_linear = v_linear.contiguous()
 
         # Reshape and permute for multi-head attention
         print(f"DEBUG QKV: self.n_head = {self.n_head}, self.attn_hidden_dim = {self.attn_hidden_dim}")
@@ -236,23 +217,11 @@ class MultiHeadAttention(Module):
         print(f"DEBUG: context after view shape: {context.shape}")
         print(f"DEBUG: context after reshape first values: {context.to_numpy()[0, 0, :5]}")
 
-        # Apply output projection
-        context2d = context.view(batch_size * queries_len, self.n_embd)
-        print(f"DEBUG: context2d shape: {context2d.shape}")
-        print(f"DEBUG: context2d first values: {context2d.to_numpy()[0, :5]}")
-        print(f"DEBUG: context2d range: [{context2d.to_numpy().min():.6f}, {context2d.to_numpy().max():.6f}]")
-
-        out_weights_T = self.out_projection.weights.value.permute(1, 0).contiguous()
-        out_bias = None if self.out_projection.bias is None else self.out_projection.bias.value
-        result2d = context2d @ out_weights_T
-        if out_bias is not None:
-            result2d = result2d + out_bias
-        print(f"DEBUG: result2d computation complete:")
-        print(f"  result2d shape: {result2d.shape}")
-        print(f"  result2d first values: {result2d.to_numpy()[0, :5]}")
-        print(f"  result2d range: [{result2d.to_numpy().min():.6f}, {result2d.to_numpy().max():.6f}]")
-
-        result = result2d.view(batch_size, queries_len, self.n_embd)
+        # Apply output projection using Linear module directly
+        result = self.out_projection(context)
+        print(f"DEBUG: result after out_projection shape: {result.shape}")
+        print(f"DEBUG: result after out_projection first values: {result.to_numpy()[0, 0, :5]}")
+        print(f"DEBUG: result after out_projection range: [{result.to_numpy().min():.6f}, {result.to_numpy().max():.6f}]")
         print(f"DEBUG: final result shape: {result.shape}")
         print(f"DEBUG: final result first values: {result.to_numpy()[0, 0, :5]}")
         print(f"DEBUG: final result range: [{result.to_numpy().min():.6f}, {result.to_numpy().max():.6f}]")
