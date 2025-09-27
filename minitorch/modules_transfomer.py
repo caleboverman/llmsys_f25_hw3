@@ -239,6 +239,10 @@ class MultiHeadAttention(Module):
         # Choose direct orientation by default (will adjust if mismatch)
         result2d = result_direct
 
+        result_np = result2d.to_numpy()
+        nz_counts = (abs(result_np) > 1e-12).sum()
+        print(f"DEBUG: result2d nonzero count: {nz_counts}/{result_np.size}")
+
         result = result2d.view(batch_size, queries_len, self.n_embd)
         print(f"DEBUG: final result shape: {result.shape}")
         print(f"DEBUG: final result first values: {result.to_numpy()[0, 0, :5]}")
