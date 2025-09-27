@@ -99,9 +99,20 @@ class MultiHeadAttention(Module):
         print(f"DEBUG QKV: v_projection weights shape: {self.v_projection.weights.value.shape}")
         print(f"DEBUG QKV: q_projection weights[0,:8]: {self.q_projection.weights.value.to_numpy()[0, :8]}")
 
-        q2d = self.q_projection(x2d)
-        k2d = self.k_projection(x2d)
-        v2d = self.v_projection(x2d)
+        q_weights = self.q_projection.weights.value
+        k_weights = self.k_projection.weights.value
+        v_weights = self.v_projection.weights.value
+
+        q2d = x2d @ q_weights
+        k2d = x2d @ k_weights
+        v2d = x2d @ v_weights
+
+        if self.q_projection.bias is not None:
+            q2d = q2d + self.q_projection.bias.value
+        if self.k_projection.bias is not None:
+            k2d = k2d + self.k_projection.bias.value
+        if self.v_projection.bias is not None:
+            v2d = v2d + self.v_projection.bias.value
 
         print(f"DEBUG QKV: q2d shape: {q2d.shape}")
         print(f"DEBUG QKV: q2d[0,:8]: {q2d.to_numpy()[0, :8]}")
@@ -212,10 +223,13 @@ class MultiHeadAttention(Module):
         print(f"DEBUG: context2d first values: {context2d.to_numpy()[0, :5]}")
         print(f"DEBUG: context2d range: [{context2d.to_numpy().min():.6f}, {context2d.to_numpy().max():.6f}]")
 
-        print(f"DEBUG: out_projection weights shape: {self.out_projection.weights.value.shape}")
-        print(f"DEBUG: out_projection weights sample: {self.out_projection.weights.value.to_numpy()[:5, :5]}")
+        out_weights = self.out_projection.weights.value
+        print(f"DEBUG: out_projection weights shape: {out_weights.shape}")
+        print(f"DEBUG: out_projection weights sample: {out_weights.to_numpy()[:5, :5]}")
 
-        result2d = self.out_projection(context2d)
+        result2d = context2d @ out_weights
+        if self.out_projection.bias is not None:
+            result2d = result2d + self.out_projection.bias.value
         print(f"DEBUG: result2d shape: {result2d.shape}")
         print(f"DEBUG: result2d[0,:8]: {result2d.to_numpy()[0, :8]}")
 
