@@ -135,6 +135,17 @@ class MultiHeadAttention(Module):
 
         attn = softmax(scores, dim=3)                              # use positive dim index
         attn = self.dropout(attn)
+        # --- DEBUG: print a small slice for the smallest test case ---
+        if (batch_size == 1) and (num_head == 1) and (queries_len == 32):
+            try:
+                # show a few logits before softmax and the resulting attention row
+                print("[MHA DEBUG] scores[0,0,0,:8] =>", scores[0, 0, 0, :8].to_numpy())
+                print("[MHA DEBUG] attn  [0,0,0,:8] =>", attn[0, 0, 0, :8].to_numpy())
+                # sanity: attention row should sum ~1
+                row_sum = attn[0, 0, 0, :].sum().item()
+                print("[MHA DEBUG] attn row sum =>", row_sum)
+            except Exception as e:
+                print("[MHA DEBUG] print error:", e)
 
         context = attn @ v                                         # (B, H, T, D)
         context = context.permute(0, 2, 1, 3).contiguous()         # (B, T, H, D)
