@@ -92,9 +92,9 @@ class MultiHeadAttention(Module):
         k_linear = self.k_projection(x2d).view(batch_size, seq_len, n_embd)
         v_linear = self.v_projection(x2d).view(batch_size, seq_len, n_embd)
 
-        q = q_linear.view(batch_size, seq_len, self.n_head, self.attn_hidden_dim).permute(0, 2, 1, 3)
-        k = k_linear.view(batch_size, seq_len, self.n_head, self.attn_hidden_dim).permute(0, 2, 1, 3)
-        v = v_linear.view(batch_size, seq_len, self.n_head, self.attn_hidden_dim).permute(0, 2, 1, 3)
+        q = q_linear.view(batch_size, seq_len, self.n_head, self.attn_hidden_dim).permute(0, 2, 1, 3).contiguous()
+        k = k_linear.view(batch_size, seq_len, self.n_head, self.attn_hidden_dim).permute(0, 2, 1, 3).contiguous()
+        v = v_linear.view(batch_size, seq_len, self.n_head, self.attn_hidden_dim).permute(0, 2, 1, 3).contiguous()
 
         kT = k.permute(0, 1, 3, 2)
         ### END ASSIGN3_3
@@ -125,7 +125,10 @@ class MultiHeadAttention(Module):
             mask = self.create_causal_mask(queries_len)
             scores = scores + mask
 
-        attn = softmax(scores, dim=-1)
+        row_max = max(scores, dim=-1)                            # (batch_size, num_head, queries_len)
+        row_max = row_max.view(batch_size, num_head, queries_len, 1)  # broadcast shape
+        scores = scores - row_max
+        attn = softmax(scores, dim=3)
         attn = self.dropout(attn)
         context = attn @ v
         context = context.permute(0, 2, 1, 3)
