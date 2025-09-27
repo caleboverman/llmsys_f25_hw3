@@ -124,13 +124,11 @@ class MultiHeadAttention(Module):
 
         if self.causal:
             mask = self.create_causal_mask(queries_len)  # (1,1,T,T) broadcasts to (B,H,T,T)
-            print(f"DEBUG: original mask range=[{mask.to_numpy().min():.6f}, {mask.to_numpy().max():.6f}]")
-            mask_numpy = mask.to_numpy()
-            mask_numpy = np.clip(mask_numpy, -1e4, 0.0)
-            mask = tensor_from_numpy(mask_numpy, backend=self.backend)
-            print(f"DEBUG: clipped mask range=[{mask.to_numpy().min():.6f}, {mask.to_numpy().max():.6f}]")
+            print(f"DEBUG: mask shape={mask.shape}, scores shape={scores.shape}")
+            print(f"DEBUG: mask unique values={np.unique(mask.to_numpy())}")
             scores = scores + mask
             print(f"DEBUG: scores+mask hasNaN={np.isnan(scores.to_numpy()).any()}")
+            print(f"DEBUG: scores range after mask=[{scores.to_numpy().min():.6f}, {scores.to_numpy().max():.6f}]")
 
         attn = softmax(scores, dim=-1)
         print(f"DEBUG: attn after softmax hasNaN={np.isnan(attn.to_numpy()).any()}")
