@@ -120,7 +120,7 @@ class MultiHeadAttention(Module):
         result = None
 
         ### BEGIN ASSIGN3_3
-        scores = (q @ kT) / np.sqrt(self.attn_hidden_dim)
+        scores = (q @ kT) / (self.attn_hidden_dim ** 0.5)
 
         if self.causal:
             mask = self.create_causal_mask(queries_len)  # (1,1,T,T) broadcasts to (B,H,T,T)
