@@ -233,15 +233,18 @@ class MultiHeadAttention(Module):
             result_direct = result_direct + self.out_projection.bias.value
             result_transposed = result_transposed + self.out_projection.bias.value
 
-        print(f"DEBUG: result_direct[0,:8]: {result_direct.to_numpy()[0, :8]}")
-        print(f"DEBUG: result_transposed[0,:8]: {result_transposed.to_numpy()[0, :8]}")
+        result_direct_np = result_direct.to_numpy()
+        result_transposed_np = result_transposed.to_numpy()
+        print(f"DEBUG: result_direct[0,:8]: {result_direct_np[0, :8]}")
+        print(f"DEBUG: result_direct[0,32:40]: {result_direct_np[0, 32:40]}")
+        print(f"DEBUG: result_transposed[0,:8]: {result_transposed_np[0, :8]}")
+        print(f"DEBUG: result_transposed[0,32:40]: {result_transposed_np[0, 32:40]}")
 
         # Choose direct orientation by default (will adjust if mismatch)
         result2d = result_direct
 
-        result_np = result2d.to_numpy()
-        nz_counts = (abs(result_np) > 1e-12).sum()
-        print(f"DEBUG: result2d nonzero count: {nz_counts}/{result_np.size}")
+        nz_counts = (abs(result_direct_np) > 1e-12).sum()
+        print(f"DEBUG: result2d nonzero count: {nz_counts}/{result_direct_np.size}")
 
         result = result2d.view(batch_size, queries_len, self.n_embd)
         print(f"DEBUG: final result shape: {result.shape}")
