@@ -120,32 +120,27 @@ class MultiHeadAttention(Module):
         result = None
 
         ### BEGIN ASSIGN3_3
-        # Compute scaled dot-product attention scores
-        scores = q @ kT
+        inv_sqrt_d = 1.0 / np.sqrt(self.attn_hidden_dim)
+        scores = (q @ kT) * inv_sqrt_d  # (B, H, T, T)
 
-        # Apply causal mask if needed
+        # 2) Causal mask (use as-is; no clamping)
         if self.causal:
-            mask = self.create_causal_mask(queries_len)
-            # Clamp mask values to prevent numerical issues
-            # mask_np = mask.to_numpy()
-            # mask_np = np.where(mask_np < -1e9, -1e9, mask_np)
-            # mask = tensor_from_numpy(mask_np, backend=self.backend)
+            mask = self.create_causal_mask(queries_len)  # (1, 1, T, T), broadcast to (B, H, T, T)
             scores = scores + mask
 
-        # Apply softmax to get attention weights
+        # 3) Softmax along keys dim (dim=3 here)
         attn = softmax(scores, dim=3)
 
-        # Apply dropout
+        # 4) Dropout on attention weights
         attn = self.dropout(attn)
 
-        # Compute weighted sum of values
-        context = attn @ v
+        # 5) Attention * values
+        context = attn @ v  # (B, H, T, D)
 
-        # Reshape for output projection: (B, H, T, D) -> (B, T, H, D) -> (B, T, n_embd)
-        context = context.permute(0, 2, 1, 3).contiguous()
-        context = context.view(batch_size, queries_len, self.n_embd)
+        # 6) Bring heads together and project out
+        context = context.permute(0, 2, 1, 3).contiguous()           # (B, T, H, D)
+        context = context.view(batch_size, queries_len, self.n_embd) # (B, T, C=n_embd)
 
-        # Apply output projection
         context2d = context.view(batch_size * queries_len, self.n_embd)
         result2d = self.out_projection(context2d)
         result = result2d.view(batch_size, queries_len, self.n_embd)
