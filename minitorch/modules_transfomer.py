@@ -125,7 +125,7 @@ class MultiHeadAttention(Module):
             mask = self.create_causal_mask(queries_len)
             scores = scores + mask
 
-        attn = softmax(scores, dim=3)
+        attn = softmax(scores, dim=-1)
         attn = self.dropout(attn)
         context = attn @ v
         context = context.permute(0, 2, 1, 3)
