@@ -94,10 +94,13 @@ class MultiHeadAttention(Module):
         Wk = self.k_projection.weights.value
         Wv = self.v_projection.weights.value
 
-        # use .T to match PyTorch-saved fixtures
-        q_linear = (x2d @ Wq.transpose()).view(batch_size, seq_len, n_embd)
-        k_linear = (x2d @ Wk.transpose()).view(batch_size, seq_len, n_embd)
-        v_linear = (x2d @ Wv.transpose()).view(batch_size, seq_len, n_embd)
+        # use .permute(1, 0).contiguous() to match PyTorch-saved fixtures and ensure contiguity
+        Wtq = Wq.permute(1, 0).contiguous()
+        Wtk = Wk.permute(1, 0).contiguous()
+        Wtv = Wv.permute(1, 0).contiguous()
+        q_linear = (x2d @ Wtq).view(batch_size, seq_len, n_embd)
+        k_linear = (x2d @ Wtk).view(batch_size, seq_len, n_embd)
+        v_linear = (x2d @ Wtv).view(batch_size, seq_len, n_embd)
 
         q = q_linear.view(batch_size, seq_len, self.n_head, self.attn_hidden_dim).permute(0, 2, 1, 3).contiguous()
         k = k_linear.view(batch_size, seq_len, self.n_head, self.attn_hidden_dim).permute(0, 2, 1, 3).contiguous()
