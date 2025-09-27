@@ -122,19 +122,13 @@ class MultiHeadAttention(Module):
         scores = (q @ kT) / (self.attn_hidden_dim ** 0.5)
         print(f"DEBUG: scores hasNaN={np.isnan(scores.to_numpy()).any()}")
 
-        if self.causal:
+        # Temporarily disable causal masking to test basic attention
+        if False:  # self.causal:
             mask = self.create_causal_mask(queries_len)  # (1,1,T,T) broadcasts to (B,H,T,T)
-            print(f"DEBUG: mask shape={mask.shape}, scores shape={scores.shape}")
-            print(f"DEBUG: mask unique values={np.unique(mask.to_numpy())}")
             scores = scores + mask
-            print(f"DEBUG: scores+mask hasNaN={np.isnan(scores.to_numpy()).any()}")
-            print(f"DEBUG: scores range after mask=[{scores.to_numpy().min():.6f}, {scores.to_numpy().max():.6f}]")
 
         attn = softmax(scores, dim=-1)
         print(f"DEBUG: attn after softmax hasNaN={np.isnan(attn.to_numpy()).any()}")
-        if np.isnan(attn.to_numpy()).any():
-            print(f"DEBUG: scores before softmax range=[{scores.to_numpy().min():.6f}, {scores.to_numpy().max():.6f}]")
-            print(f"DEBUG: scores contains inf: {np.isinf(scores.to_numpy()).any()}")
         attn = self.dropout(attn)
         print(f"DEBUG: attn after dropout hasNaN={np.isnan(attn.to_numpy()).any()}")
         context = attn @ v
