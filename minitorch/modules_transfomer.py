@@ -146,6 +146,32 @@ class MultiHeadAttention(Module):
             except Exception as e:
                 print("[MHA DEBUG] print error:", e)
 
+        # --- DEBUG 2: inspect a later query row and compare two merge orders ---
+        if (batch_size == 1) and (num_head == 1) and (queries_len == 32):
+            try:
+                a_np = attn.to_numpy()
+                # pick a later query index where more than one key is unmasked
+                qi = 7  # any qi>0 works; 7 is arbitrary but in-range
+                print("[MHA DEBUG] attn  [0,0,qi,:8] =>", a_np[0, 0, qi, :8])
+                print("[MHA DEBUG] attn row sum (qi)", a_np[0, 0, qi, :].sum())
+
+                # current merge path (B,H,T,D)->(B,T,H,D)->view(B,T,C)
+                ctx_std = (attn @ v).permute(0, 2, 1, 3).contiguous()
+                out_std = self.out_projection(ctx_std.view(batch_size * queries_len, self.n_embd))
+                out_std = out_std.view(batch_size, queries_len, self.n_embd)
+
+                # alternative merge: (B,H,T,D)->(B,T,D,H)->view(B,T,C)
+                ctx_alt = (attn @ v).permute(0, 2, 3, 1).contiguous()
+                out_alt = self.out_projection(ctx_alt.view(batch_size * queries_len, self.n_embd))
+                out_alt = out_alt.view(batch_size, queries_len, self.n_embd)
+
+                o_std = out_std.to_numpy()
+                o_alt = out_alt.to_numpy()
+                print("[MHA DEBUG] out_std[0,0,:8] =>", o_std[0, 0, :8])
+                print("[MHA DEBUG] out_alt[0,0,:8] =>", o_alt[0, 0, :8])
+            except Exception as e:
+                print("[MHA DEBUG] debug2 error:", e)
+
         context = attn @ v                                         # (B, H, T, D)
         context = context.permute(0, 2, 1, 3).contiguous()         # (B, T, H, D)
         context = context.view(batch_size, queries_len, self.n_embd)
