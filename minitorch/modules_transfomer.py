@@ -129,8 +129,10 @@ class MultiHeadAttention(Module):
 
         attn = softmax(scores, dim=-1)
         print(f"DEBUG: attn after softmax hasNaN={np.isnan(attn.to_numpy()).any()}")
+        print(f"DEBUG: attn shape={attn.shape}, range=[{attn.to_numpy().min():.6f}, {attn.to_numpy().max():.6f}]")
         attn = self.dropout(attn)
         print(f"DEBUG: attn after dropout hasNaN={np.isnan(attn.to_numpy()).any()}")
+        print(f"DEBUG: v shape={v.shape}, hasNaN={np.isnan(v.to_numpy()).any()}")
         context = attn @ v
         print(f"DEBUG: context hasNaN={np.isnan(context.to_numpy()).any()}")
         context = context.permute(0, 2, 1, 3)
