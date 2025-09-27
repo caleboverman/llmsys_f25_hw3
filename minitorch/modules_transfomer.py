@@ -138,12 +138,11 @@ class MultiHeadAttention(Module):
         # --- DEBUG: print a small slice for the smallest test case ---
         if (batch_size == 1) and (num_head == 1) and (queries_len == 32):
             try:
-                # show a few logits before softmax and the resulting attention row
-                print("[MHA DEBUG] scores[0,0,0,:8] =>", scores[0, 0, 0, :8].to_numpy())
-                print("[MHA DEBUG] attn  [0,0,0,:8] =>", attn[0, 0, 0, :8].to_numpy())
-                # sanity: attention row should sum ~1
-                row_sum = attn[0, 0, 0, :].sum().item()
-                print("[MHA DEBUG] attn row sum =>", row_sum)
+                s_np = scores.to_numpy()
+                a_np = attn.to_numpy()
+                print("[MHA DEBUG] scores[0,0,0,:8] =>", s_np[0, 0, 0, :8])
+                print("[MHA DEBUG] attn  [0,0,0,:8] =>", a_np[0, 0, 0, :8])
+                print("[MHA DEBUG] attn row sum =>", a_np[0, 0, 0, :].sum())
             except Exception as e:
                 print("[MHA DEBUG] print error:", e)
 
