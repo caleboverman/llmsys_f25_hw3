@@ -124,6 +124,9 @@ class MultiHeadAttention(Module):
         if self.causal:
             mask = self.create_causal_mask(queries_len)
             scores = scores + mask
+            # Clamp very negative masked positions to a safe finite value to avoid NaNs in softmax
+            neg_large = tensor_from_numpy(np.array(-1e9, dtype=datatype), backend=self.backend)
+            scores = max(scores, neg_large)
 
         attn = softmax(scores, dim=-1)
         attn = self.dropout(attn)
