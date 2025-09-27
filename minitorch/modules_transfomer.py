@@ -100,19 +100,55 @@ class MultiHeadAttention(Module):
         print(f"DEBUG QKV: k_projection weights sample: {self.k_projection.weights.value.to_numpy()[:5, :5]}")
         print(f"DEBUG QKV: v_projection weights sample: {self.v_projection.weights.value.to_numpy()[:5, :5]}")
 
-        # Use the Linear layers directly (they already implement x @ W with correct orientation)
-        q_linear = self.q_projection(x2d).view(batch_size, seq_len, n_embd)
-        print(f"DEBUG QKV: q_linear shape: {q_linear.shape}")
-        print(f"DEBUG QKV: q_linear first values: {q_linear.to_numpy()[0, 0, :5]}")
-        print(f"DEBUG QKV: q_linear range: [{q_linear.to_numpy().min():.6f}, {q_linear.to_numpy().max():.6f}]")
+        # Use raw weight tensors with explicit transpose to handle PyTorch weight convention
+        # PyTorch weights are (out_features, in_features), so we need to transpose them
+        print(f"DEBUG QKV: Original weight orientations:")
+        print(f"  q_weights original shape: {self.q_projection.weights.value.shape}")
+        print(f"  k_weights original shape: {self.k_projection.weights.value.shape}")
+        print(f"  v_weights original shape: {self.v_projection.weights.value.shape}")
 
-        k_linear = self.k_projection(x2d).view(batch_size, seq_len, n_embd)
-        print(f"DEBUG QKV: k_linear shape: {k_linear.shape}")
-        print(f"DEBUG QKV: k_linear first values: {k_linear.to_numpy()[0, 0, :5]}")
+        q_weights_T = self.q_projection.weights.value.permute(1, 0).contiguous()
+        k_weights_T = self.k_projection.weights.value.permute(1, 0).contiguous()
+        v_weights_T = self.v_projection.weights.value.permute(1, 0).contiguous()
 
-        v_linear = self.v_projection(x2d).view(batch_size, seq_len, n_embd)
-        print(f"DEBUG QKV: v_linear shape: {v_linear.shape}")
-        print(f"DEBUG QKV: v_linear first values: {v_linear.to_numpy()[0, 0, :5]}")
+        print(f"DEBUG QKV: Transposed weight shapes:")
+        print(f"  q_weights_T shape: {q_weights_T.shape}")
+        print(f"  k_weights_T shape: {k_weights_T.shape}")
+        print(f"  v_weights_T shape: {v_weights_T.shape}")
+
+        print(f"DEBUG QKV: Weight matrix samples after transpose:")
+        print(f"  q_weights_T sample: {q_weights_T.to_numpy()[:5, :5]}")
+        print(f"  k_weights_T sample: {k_weights_T.to_numpy()[:5, :5]}")
+        print(f"  v_weights_T sample: {v_weights_T.to_numpy()[:5, :5]}")
+
+        # Manual matrix multiplication: x2d @ weights_T
+        print(f"DEBUG QKV: Manual matrix multiplication:")
+        print(f"  x2d shape: {x2d.shape}, q_weights_T shape: {q_weights_T.shape}")
+
+        q_linear = (x2d @ q_weights_T).view(batch_size, seq_len, n_embd)
+        print(f"DEBUG QKV: q_linear computation complete")
+        print(f"  q_linear shape: {q_linear.shape}")
+        print(f"  q_linear first values: {q_linear.to_numpy()[0, 0, :5]}")
+        print(f"  q_linear range: [{q_linear.to_numpy().min():.6f}, {q_linear.to_numpy().max():.6f}]")
+
+        k_linear = (x2d @ k_weights_T).view(batch_size, seq_len, n_embd)
+        print(f"DEBUG QKV: k_linear computation complete")
+        print(f"  k_linear shape: {k_linear.shape}")
+        print(f"  k_linear first values: {k_linear.to_numpy()[0, 0, :5]}")
+        print(f"  k_linear range: [{k_linear.to_numpy().min():.6f}, {k_linear.to_numpy().max():.6f}]")
+
+        v_linear = (x2d @ v_weights_T).view(batch_size, seq_len, n_embd)
+        print(f"DEBUG QKV: v_linear computation complete")
+        print(f"  v_linear shape: {v_linear.shape}")
+        print(f"  v_linear first values: {v_linear.to_numpy()[0, 0, :5]}")
+        print(f"  v_linear range: [{v_linear.to_numpy().min():.6f}, {v_linear.to_numpy().max():.6f}]")
+
+        # Compare with Linear layer approach
+        print(f"DEBUG QKV: Comparison with Linear layer (old approach):")
+        q_linear_old = self.q_projection(x2d).view(batch_size, seq_len, n_embd)
+        print(f"  OLD q_linear first values: {q_linear_old.to_numpy()[0, 0, :5]}")
+        print(f"  NEW q_linear first values: {q_linear.to_numpy()[0, 0, :5]}")
+        print(f"  Difference: {(q_linear.to_numpy()[0, 0, :5] - q_linear_old.to_numpy()[0, 0, :5])}")
 
         # Reshape and permute for multi-head attention
         print(f"DEBUG QKV: self.n_head = {self.n_head}, self.attn_hidden_dim = {self.attn_hidden_dim}")
@@ -223,10 +259,27 @@ class MultiHeadAttention(Module):
         print(f"DEBUG: context2d first values: {context2d.to_numpy()[0, :5]}")
         print(f"DEBUG: context2d range: [{context2d.to_numpy().min():.6f}, {context2d.to_numpy().max():.6f}]")
 
-        result2d = self.out_projection(context2d)
-        print(f"DEBUG: result2d shape: {result2d.shape}")
-        print(f"DEBUG: result2d first values: {result2d.to_numpy()[0, :5]}")
-        print(f"DEBUG: result2d range: [{result2d.to_numpy().min():.6f}, {result2d.to_numpy().max():.6f}]")
+        # Use raw weight tensor with explicit transpose for output projection
+        print(f"DEBUG: Output projection weight handling:")
+        print(f"  out_weights original shape: {self.out_projection.weights.value.shape}")
+        print(f"  out_weights sample: {self.out_projection.weights.value.to_numpy()[:5, :5]}")
+
+        out_weights_T = self.out_projection.weights.value.permute(1, 0).contiguous()
+        print(f"  out_weights_T shape: {out_weights_T.shape}")
+        print(f"  out_weights_T sample: {out_weights_T.to_numpy()[:5, :5]}")
+
+        result2d = context2d @ out_weights_T
+        print(f"DEBUG: result2d computation complete:")
+        print(f"  result2d shape: {result2d.shape}")
+        print(f"  result2d first values: {result2d.to_numpy()[0, :5]}")
+        print(f"  result2d range: [{result2d.to_numpy().min():.6f}, {result2d.to_numpy().max():.6f}]")
+
+        # Compare with Linear layer approach
+        print(f"DEBUG: Output projection comparison:")
+        result2d_old = self.out_projection(context2d)
+        print(f"  OLD result2d first values: {result2d_old.to_numpy()[0, :5]}")
+        print(f"  NEW result2d first values: {result2d.to_numpy()[0, :5]}")
+        print(f"  Difference: {(result2d.to_numpy()[0, :5] - result2d_old.to_numpy()[0, :5])}")
 
         result = result2d.view(batch_size, queries_len, self.n_embd)
         print(f"DEBUG: final result shape: {result.shape}")
