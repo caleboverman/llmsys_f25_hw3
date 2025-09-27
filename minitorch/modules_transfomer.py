@@ -99,9 +99,19 @@ class MultiHeadAttention(Module):
         print(f"DEBUG QKV: v_projection weights shape: {self.v_projection.weights.value.shape}")
         print(f"DEBUG QKV: q_projection weights[0,:8]: {self.q_projection.weights.value.to_numpy()[0, :8]}")
 
-        q2d = self.q_projection(x2d)
-        k2d = self.k_projection(x2d)
-        v2d = self.v_projection(x2d)
+        def linear_apply(xmat, weight_param, bias_param):
+            # xmat: (N, in_features), weight: (in_features, out_features)
+            weight = weight_param.value
+            # Broadcast multiply then sum over input dimension to avoid relying on backend matmul
+            prod = (xmat.view(xmat.shape[0], xmat.shape[1], 1) * weight.view(1, weight.shape[0], weight.shape[1]))
+            out = prod.sum(dim=1)
+            if bias_param is not None:
+                out = out + bias_param.value
+            return out
+
+        q2d = linear_apply(x2d, self.q_projection.weights, self.q_projection.bias)
+        k2d = linear_apply(x2d, self.k_projection.weights, self.k_projection.bias)
+        v2d = linear_apply(x2d, self.v_projection.weights, self.v_projection.bias)
 
         print(f"DEBUG QKV: q2d shape: {q2d.shape}")
         print(f"DEBUG QKV: q2d[0,:8]: {q2d.to_numpy()[0, :8]}")
@@ -212,7 +222,7 @@ class MultiHeadAttention(Module):
         print(f"DEBUG: context2d first values: {context2d.to_numpy()[0, :5]}")
         print(f"DEBUG: context2d range: [{context2d.to_numpy().min():.6f}, {context2d.to_numpy().max():.6f}]")
 
-        result2d = self.out_projection(context2d)
+        result2d = linear_apply(context2d, self.out_projection.weights, self.out_projection.bias)
         result2d_np = result2d.to_numpy()
         print(f"DEBUG: result2d[0,:8]: {result2d_np[0, :8]}")
         print(f"DEBUG: result2d[0,32:40]: {result2d_np[0, 32:40]}")
