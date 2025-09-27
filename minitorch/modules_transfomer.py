@@ -172,12 +172,35 @@ class MultiHeadAttention(Module):
             except Exception as e:
                 print("[MHA DEBUG] debug2 error:", e)
 
+        # --- DEBUG 3: inspect V and the resulting context for qi=0 ---
+        if (batch_size == 1) and (num_head == 1) and (queries_len == 32):
+            try:
+                v_np = v.to_numpy()
+                print("[MHA DEBUG] v[0,0,0,:8] =>", v_np[0, 0, 0, :8])
+            except Exception as e:
+                print("[MHA DEBUG] debug3 V error:", e)
+
         context = attn @ v                                         # (B, H, T, D)
+        # --- DEBUG 4: context head output for qi=0 before merge ---
+        if (batch_size == 1) and (num_head == 1) and (queries_len == 32):
+            try:
+                ctx_np = context.to_numpy()
+                print("[MHA DEBUG] context[0,0,0,:8] =>", ctx_np[0, 0, 0, :8])
+            except Exception as e:
+                print("[MHA DEBUG] debug4 context error:", e)
+
         context = context.permute(0, 2, 1, 3).contiguous()         # (B, T, H, D)
         context = context.view(batch_size, queries_len, self.n_embd)
         context2d = context.view(batch_size * queries_len, self.n_embd)
         result2d = self.out_projection(context2d)
         result = result2d.view(batch_size, queries_len, self.n_embd)
+        # --- DEBUG 5: final output first row ---
+        if (batch_size == 1) and (num_head == 1) and (queries_len == 32):
+            try:
+                res_np = result.to_numpy()
+                print("[MHA DEBUG] result[0,0,:8] =>", res_np[0, 0, :8])
+            except Exception as e:
+                print("[MHA DEBUG] debug5 result error:", e)
         ### END ASSIGN3_3
 
         return result
