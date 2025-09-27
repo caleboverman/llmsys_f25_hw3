@@ -68,7 +68,8 @@ class MultiHeadAttention(Module):
                     attention tensor shape during computation.
         """
         # Returns a 1x1xTxt triangular causal mask for Q @ K^T (You will implicitly broadcast it to BxHxTxT)
-        mask = -np.finfo(datatype).max * np.triu(np.ones((1, 1, seq_len, seq_len), dtype=datatype), 1)
+        neg_large = np.array(-1e9, dtype=datatype)
+        mask = neg_large * np.triu(np.ones((1, 1, seq_len, seq_len), dtype=datatype), 1)
         return tensor_from_numpy(mask, backend=self.backend)
 
     def project_to_query_key_value(self, x):
