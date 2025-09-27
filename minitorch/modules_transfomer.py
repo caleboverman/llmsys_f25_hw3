@@ -127,9 +127,9 @@ class MultiHeadAttention(Module):
         if self.causal:
             mask = self.create_causal_mask(queries_len)
             # Clamp mask values to prevent numerical issues
-            mask_np = mask.to_numpy()
-            mask_np = np.where(mask_np < -1e9, -1e9, mask_np)
-            mask = tensor_from_numpy(mask_np, backend=self.backend)
+            # mask_np = mask.to_numpy()
+            # mask_np = np.where(mask_np < -1e9, -1e9, mask_np)
+            # mask = tensor_from_numpy(mask_np, backend=self.backend)
             scores = scores + mask
 
         # Apply softmax to get attention weights
