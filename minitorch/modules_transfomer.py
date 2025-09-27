@@ -125,9 +125,6 @@ class MultiHeadAttention(Module):
             mask = self.create_causal_mask(queries_len)
             scores = scores + mask
 
-        row_max = max(scores, dim=3)  # (B, H, T)
-        row_max = row_max.view(batch_size, num_head, queries_len, 1)
-        scores = scores - row_max
         attn = softmax(scores, dim=3)
         attn = self.dropout(attn)
         context = attn @ v
