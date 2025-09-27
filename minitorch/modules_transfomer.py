@@ -120,50 +120,35 @@ class MultiHeadAttention(Module):
         result = None
 
         ### BEGIN ASSIGN3_3
-        inv_sqrt_d = tensor_from_numpy(
-            np.array(1.0 / np.sqrt(self.attn_hidden_dim), dtype=datatype),
-            backend=self.backend
-        )
-        print(f"DEBUG: inv_sqrt_d value: {inv_sqrt_d.to_numpy()}")
-        print(f"DEBUG: self.attn_hidden_dim: {self.attn_hidden_dim}")
+        # Compute scaled dot-product attention scores
+        scores = q @ kT
 
-        scores = (q @ kT) * inv_sqrt_d
-        print(f"DEBUG: scores shape: {scores.shape}")
-        print(f"DEBUG: scores range: [{scores.to_numpy().min():.6f}, {scores.to_numpy().max():.6f}]")
-
+        # Apply causal mask if needed
         if self.causal:
             mask = self.create_causal_mask(queries_len)
-            print(f"DEBUG: original mask range: [{mask.to_numpy().min():.6f}, {mask.to_numpy().max():.6f}]")
-            # Clamp extreme mask values to prevent numerical precision issues
+            # Clamp mask values to prevent numerical issues
             mask_np = mask.to_numpy()
             mask_np = np.where(mask_np < -1e9, -1e9, mask_np)
             mask = tensor_from_numpy(mask_np, backend=self.backend)
-            print(f"DEBUG: clamped mask range: [{mask.to_numpy().min():.6f}, {mask.to_numpy().max():.6f}]")
             scores = scores + mask
-            print(f"DEBUG: scores+mask range: [{scores.to_numpy().min():.6f}, {scores.to_numpy().max():.6f}]")
 
-        # Compute attention weights and apply dropout
+        # Apply softmax to get attention weights
         attn = softmax(scores, dim=3)
-        print(f"DEBUG: attn range: [{attn.to_numpy().min():.6f}, {attn.to_numpy().max():.6f}]")
-        print(f"DEBUG: attn sum along last dim (should be ~1): {attn.to_numpy().sum(axis=-1)[0,0,:5]}")
 
+        # Apply dropout
         attn = self.dropout(attn)
-        print(f"DEBUG: attn after dropout range: [{attn.to_numpy().min():.6f}, {attn.to_numpy().max():.6f}]")
 
-        context = attn @ v                                         # (B, H, T, D)
-        print(f"DEBUG: context range: [{context.to_numpy().min():.6f}, {context.to_numpy().max():.6f}]")
+        # Compute weighted sum of values
+        context = attn @ v
 
-        context = context.permute(0, 2, 1, 3).contiguous()         # (B, T, H, D)
+        # Reshape for output projection: (B, H, T, D) -> (B, T, H, D) -> (B, T, n_embd)
+        context = context.permute(0, 2, 1, 3).contiguous()
         context = context.view(batch_size, queries_len, self.n_embd)
+
+        # Apply output projection
         context2d = context.view(batch_size * queries_len, self.n_embd)
-        print(f"DEBUG: context2d range: [{context2d.to_numpy().min():.6f}, {context2d.to_numpy().max():.6f}]")
-
         result2d = self.out_projection(context2d)
-        print(f"DEBUG: result2d range: [{result2d.to_numpy().min():.6f}, {result2d.to_numpy().max():.6f}]")
-
         result = result2d.view(batch_size, queries_len, self.n_embd)
-        print(f"DEBUG: final result range: [{result.to_numpy().min():.6f}, {result.to_numpy().max():.6f}]")
-        print(f"DEBUG: final result first few values: {result.to_numpy()[0, 0, :5]}")
         ### END ASSIGN3_3
 
         return result
