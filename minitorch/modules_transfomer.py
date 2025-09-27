@@ -119,7 +119,11 @@ class MultiHeadAttention(Module):
         result = None
 
         ### BEGIN ASSIGN3_3
-        scores = (q @ kT) / (self.attn_hidden_dim ** 0.5)
+        inv_sqrt_d = tensor_from_numpy(
+            np.array(1.0 / np.sqrt(self.attn_hidden_dim), dtype=datatype),
+            backend=self.backend
+        )
+        scores = (q @ kT) * inv_sqrt_d
 
         if self.causal:
             mask = self.create_causal_mask(queries_len)
@@ -137,7 +141,8 @@ class MultiHeadAttention(Module):
         context = context.view(batch_size, queries_len, self.n_embd)
         context2d = context.view(batch_size * queries_len, self.n_embd)
         result2d = self.out_projection(context2d)
-        result = result2d.view(batch_size, queries_len, self.n_embd)        ### END ASSIGN3_3
+        result = result2d.view(batch_size, queries_len, self.n_embd)
+        ### END ASSIGN3_3
 
         return result
 
