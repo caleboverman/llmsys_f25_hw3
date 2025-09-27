@@ -96,7 +96,7 @@ class MultiHeadAttention(Module):
         k = k_linear.view(batch_size, seq_len, self.n_head, self.attn_hidden_dim).permute(0, 2, 1, 3).contiguous()
         v = v_linear.view(batch_size, seq_len, self.n_head, self.attn_hidden_dim).permute(0, 2, 1, 3).contiguous()
 
-        kT = k.permute(0, 1, 3, 2)
+        kT = k.permute(0, 1, 3, 2).contiguous()
         ### END ASSIGN3_3
         return q, kT, v
 
