@@ -125,16 +125,19 @@ class MultiHeadAttention(Module):
             mask = self.create_causal_mask(queries_len)
             scores = scores + mask
 
-        attn = softmax(scores, dim=-1)
+        row_max = max(scores, dim=3)                               # (batch_size, num_head, queries_len)
+        row_max = row_max.view(batch_size, num_head, queries_len, 1)
+        scores = scores - row_max
+
+        attn = softmax(scores, dim=3)                              # use positive dim index
         attn = self.dropout(attn)
-        context = attn @ v
-        context = context.permute(0, 2, 1, 3)
-        context = context.contiguous()
+
+        context = attn @ v                                         # (B, H, T, D)
+        context = context.permute(0, 2, 1, 3).contiguous()         # (B, T, H, D)
         context = context.view(batch_size, queries_len, self.n_embd)
         context2d = context.view(batch_size * queries_len, self.n_embd)
-        result = self.out_projection(context2d)
-        result = result.view(batch_size, queries_len, self.n_embd)
-        ### END ASSIGN3_3
+        result2d = self.out_projection(context2d)
+        result = result2d.view(batch_size, queries_len, self.n_embd)        ### END ASSIGN3_3
 
         return result
 
