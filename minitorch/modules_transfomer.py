@@ -126,7 +126,7 @@ class MultiHeadAttention(Module):
             mask = self.create_causal_mask(queries_len)  # (1,1,T,T) broadcasts to (B,H,T,T)
             print(f"DEBUG: original mask range=[{mask.to_numpy().min():.6f}, {mask.to_numpy().max():.6f}]")
             mask_numpy = mask.to_numpy()
-            mask_numpy = np.clip(mask_numpy, -1e9, 0.0)
+            mask_numpy = np.clip(mask_numpy, -1e4, 0.0)
             mask = tensor_from_numpy(mask_numpy, backend=self.backend)
             print(f"DEBUG: clipped mask range=[{mask.to_numpy().min():.6f}, {mask.to_numpy().max():.6f}]")
             scores = scores + mask
