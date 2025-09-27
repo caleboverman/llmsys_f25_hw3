@@ -130,91 +130,16 @@ class MultiHeadAttention(Module):
             mask = self.create_causal_mask(queries_len)
             scores = scores + mask
 
-        row_max = max(scores, dim=3)                               # (batch_size, num_head, queries_len)
-        row_max = row_max.view(batch_size, num_head, queries_len, 1)
-        scores = scores - row_max
-
-        attn = softmax(scores, dim=3)                              # use positive dim index
+        # Compute attention weights and apply dropout
+        attn = softmax(scores, dim=3)
         attn = self.dropout(attn)
-        # --- DEBUG: print a small slice for the smallest test case ---
-        if (batch_size == 1) and (num_head == 1) and (queries_len == 32):
-            try:
-                s_np = scores.to_numpy()
-                a_np = attn.to_numpy()
-                print("[MHA DEBUG] scores[0,0,0,:8] =>", s_np[0, 0, 0, :8])
-                print("[MHA DEBUG] attn  [0,0,0,:8] =>", a_np[0, 0, 0, :8])
-                print("[MHA DEBUG] attn row sum =>", a_np[0, 0, 0, :].sum())
-            except Exception as e:
-                print("[MHA DEBUG] print error:", e)
-
-        # --- DEBUG 2: inspect a later query row and compare two merge orders ---
-        if (batch_size == 1) and (num_head == 1) and (queries_len == 32):
-            try:
-                a_np = attn.to_numpy()
-                # pick a later query index where more than one key is unmasked
-                qi = 7  # any qi>0 works; 7 is arbitrary but in-range
-                print("[MHA DEBUG] attn  [0,0,qi,:8] =>", a_np[0, 0, qi, :8])
-                print("[MHA DEBUG] attn row sum (qi)", a_np[0, 0, qi, :].sum())
-
-                # current merge path (B,H,T,D)->(B,T,H,D)->view(B,T,C)
-                ctx_std = (attn @ v).permute(0, 2, 1, 3).contiguous()
-                out_std = self.out_projection(ctx_std.view(batch_size * queries_len, self.n_embd))
-                out_std = out_std.view(batch_size, queries_len, self.n_embd)
-
-                # alternative merge: (B,H,T,D)->(B,T,D,H)->view(B,T,C)
-                ctx_alt = (attn @ v).permute(0, 2, 3, 1).contiguous()
-                out_alt = self.out_projection(ctx_alt.view(batch_size * queries_len, self.n_embd))
-                out_alt = out_alt.view(batch_size, queries_len, self.n_embd)
-
-                o_std = out_std.to_numpy()
-                o_alt = out_alt.to_numpy()
-                print("[MHA DEBUG] out_std[0,0,:8] =>", o_std[0, 0, :8])
-                print("[MHA DEBUG] out_alt[0,0,:8] =>", o_alt[0, 0, :8])
-            except Exception as e:
-                print("[MHA DEBUG] debug2 error:", e)
-
-        # --- DEBUG 3: inspect V and the resulting context for qi=0 ---
-        if (batch_size == 1) and (num_head == 1) and (queries_len == 32):
-            try:
-                v_np = v.to_numpy()
-                print("[MHA DEBUG] v[0,0,0,:8] =>", v_np[0, 0, 0, :8])
-            except Exception as e:
-                print("[MHA DEBUG] debug3 V error:", e)
 
         context = attn @ v                                         # (B, H, T, D)
-        # --- DEBUG 4: context head output for qi=0 before merge ---
-        if (batch_size == 1) and (num_head == 1) and (queries_len == 32):
-            try:
-                ctx_np = context.to_numpy()
-                print("[MHA DEBUG] context[0,0,0,:8] =>", ctx_np[0, 0, 0, :8])
-            except Exception as e:
-                print("[MHA DEBUG] debug4 context error:", e)
-
         context = context.permute(0, 2, 1, 3).contiguous()         # (B, T, H, D)
         context = context.view(batch_size, queries_len, self.n_embd)
         context2d = context.view(batch_size * queries_len, self.n_embd)
         result2d = self.out_projection(context2d)
         result = result2d.view(batch_size, queries_len, self.n_embd)
-        # --- DEBUG 5: final output first row ---
-        if (batch_size == 1) and (num_head == 1) and (queries_len == 32):
-            try:
-                res_np = result.to_numpy()
-                print("[MHA DEBUG] result[0,0,:8] =>", res_np[0, 0, :8])
-            except Exception as e:
-                print("[MHA DEBUG] debug5 result error:", e)
-        # --- DEBUG 6: manual out-projection check (both orientations) for qi=0 ---
-        if (batch_size == 1) and (num_head == 1) and (queries_len == 32):
-            try:
-                # fetch context row and weight matrix
-                ctx2d_np = context2d.to_numpy()  # shape (B*T, C)
-                W = self.out_projection.weights.value.to_numpy()  # expect (C_in, C_out)
-                # compute both orientations
-                out_nm = ctx2d_np[0] @ W                      # (C,)
-                out_tm = W.T @ ctx2d_np[0]                    # (C,)
-                print("[MHA DEBUG] manual ctx@W  [:8] =>", out_nm[:8])
-                print("[MHA DEBUG] manual W^T@ctx[:8] =>", out_tm[:8])
-            except Exception as e:
-                print("[MHA DEBUG] debug6 manual mm error:", e)
         ### END ASSIGN3_3
 
         return result
