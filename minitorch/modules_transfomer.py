@@ -90,32 +90,31 @@ class MultiHeadAttention(Module):
         print(f"DEBUG QKV: Input x first values: {x.to_numpy()[0, 0, :5]}")
         print(f"DEBUG QKV: Input x range: [{x.to_numpy().min():.6f}, {x.to_numpy().max():.6f}]")
 
+        x2d = x.view(batch_size * seq_len, n_embd)
+        print(f"DEBUG QKV: x2d shape: {x2d.shape}")
+        print(f"DEBUG QKV: x2d first values: {x2d.to_numpy()[0, :5]}")
+
         # Inspect projection weights
         print(f"DEBUG QKV: q_projection weights shape: {self.q_projection.weights.value.shape}")
         print(f"DEBUG QKV: q_projection weights sample: {self.q_projection.weights.value.to_numpy()[:5, :5]}")
         print(f"DEBUG QKV: k_projection weights sample: {self.k_projection.weights.value.to_numpy()[:5, :5]}")
         print(f"DEBUG QKV: v_projection weights sample: {self.v_projection.weights.value.to_numpy()[:5, :5]}")
 
-        # Rely on Linear modules directly (they already handle arbitrary leading dims)
-        q_linear = self.q_projection(x)
+        # Use Linear layers on the flattened input (weights are stored as (in, out))
+        q_linear = self.q_projection(x2d).view(batch_size, seq_len, n_embd)
         print(f"DEBUG QKV: q_linear shape: {q_linear.shape}")
         print(f"DEBUG QKV: q_linear first values: {q_linear.to_numpy()[0, 0, :5]}")
         print(f"DEBUG QKV: q_linear range: [{q_linear.to_numpy().min():.6f}, {q_linear.to_numpy().max():.6f}]")
 
-        k_linear = self.k_projection(x)
+        k_linear = self.k_projection(x2d).view(batch_size, seq_len, n_embd)
         print(f"DEBUG QKV: k_linear shape: {k_linear.shape}")
         print(f"DEBUG QKV: k_linear first values: {k_linear.to_numpy()[0, 0, :5]}")
         print(f"DEBUG QKV: k_linear range: [{k_linear.to_numpy().min():.6f}, {k_linear.to_numpy().max():.6f}]")
 
-        v_linear = self.v_projection(x)
+        v_linear = self.v_projection(x2d).view(batch_size, seq_len, n_embd)
         print(f"DEBUG QKV: v_linear shape: {v_linear.shape}")
         print(f"DEBUG QKV: v_linear first values: {v_linear.to_numpy()[0, 0, :5]}")
         print(f"DEBUG QKV: v_linear range: [{v_linear.to_numpy().min():.6f}, {v_linear.to_numpy().max():.6f}]")
-
-        # Ensure we have contiguous buffers before reshaping for heads
-        q_linear = q_linear.contiguous()
-        k_linear = k_linear.contiguous()
-        v_linear = v_linear.contiguous()
 
         # Reshape and permute for multi-head attention
         print(f"DEBUG QKV: self.n_head = {self.n_head}, self.attn_hidden_dim = {self.attn_hidden_dim}")
@@ -217,11 +216,22 @@ class MultiHeadAttention(Module):
         print(f"DEBUG: context after view shape: {context.shape}")
         print(f"DEBUG: context after reshape first values: {context.to_numpy()[0, 0, :5]}")
 
-        # Apply output projection using Linear module directly
-        result = self.out_projection(context)
-        print(f"DEBUG: result after out_projection shape: {result.shape}")
-        print(f"DEBUG: result after out_projection first values: {result.to_numpy()[0, 0, :5]}")
-        print(f"DEBUG: result after out_projection range: [{result.to_numpy().min():.6f}, {result.to_numpy().max():.6f}]")
+        # Apply output projection
+        context2d = context.view(batch_size * queries_len, self.n_embd)
+        print(f"DEBUG: context2d shape: {context2d.shape}")
+        print(f"DEBUG: context2d first values: {context2d.to_numpy()[0, :5]}")
+        print(f"DEBUG: context2d range: [{context2d.to_numpy().min():.6f}, {context2d.to_numpy().max():.6f}]")
+
+        print(f"DEBUG: out_projection weights shape: {self.out_projection.weights.value.shape}")
+        print(f"DEBUG: out_projection weights sample: {self.out_projection.weights.value.to_numpy()[:5, :5]}")
+
+        result2d = self.out_projection(context2d)
+        print(f"DEBUG: result2d computation complete:")
+        print(f"  result2d shape: {result2d.shape}")
+        print(f"  result2d first values: {result2d.to_numpy()[0, :5]}")
+        print(f"  result2d range: [{result2d.to_numpy().min():.6f}, {result2d.to_numpy().max():.6f}]")
+
+        result = result2d.view(batch_size, queries_len, self.n_embd)
         print(f"DEBUG: final result shape: {result.shape}")
         print(f"DEBUG: final result first values: {result.to_numpy()[0, 0, :5]}")
         print(f"DEBUG: final result range: [{result.to_numpy().min():.6f}, {result.to_numpy().max():.6f}]")
