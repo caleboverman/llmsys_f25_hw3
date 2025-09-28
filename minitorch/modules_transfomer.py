@@ -86,7 +86,7 @@ class MultiHeadAttention(Module):
         """
         batch_size, seq_len, n_embd = x.shape
         ### BEGIN ASSIGN3_3
-        x2d = x.view(batch_size * seq_len, n_embd)
+        x2d = x.contiguous().view(batch_size * seq_len, n_embd)
 
         q2d = self.q_projection(x2d)
         k2d = self.k_projection(x2d)
@@ -143,7 +143,7 @@ class MultiHeadAttention(Module):
         context = context.permute(0, 2, 1, 3).contiguous()
         context = context.view(batch_size, queries_len, self.n_embd)
 
-        context2d = context.view(batch_size * queries_len, self.n_embd)
+        context2d = context.contiguous().view(batch_size * queries_len, self.n_embd)
         result2d = self.out_projection(context2d)
 
         result = result2d.view(batch_size, queries_len, self.n_embd)
@@ -205,8 +205,11 @@ class FeedForward(Module):
         batch_size, seq_len, n_embd = x.shape
 
         ### BEGIN ASSIGN3_3
-        x = GELU(self.linear_in(x.view(batch_size * seq_len, n_embd)))
-        x = self.dropout(self.linear_out(x)).view(batch_size, seq_len, n_embd)
+        x = x.contiguous().view(batch_size * seq_len, n_embd)
+        x = GELU(self.linear_in(x))
+        x = self.linear_out(x)
+        x = self.dropout(x)
+        x = x.view(batch_size, seq_len, n_embd)
         ### END ASSIGN3_3
 
         return x
@@ -265,18 +268,18 @@ class TransformerLayer(Module):
         batch_size, seq_len, n_embd = x.shape
         ### BEGIN YOUR SOLUTION
         residual = x
-        x = x.view(batch_size * seq_len, n_embd)
+        x = x.contiguous().view(batch_size * seq_len, n_embd)
         x = self.ln_1(x)
         x = x.view(batch_size, seq_len, n_embd)
-        x = self.attention(x)
-        x = residual + x
+        attn_out = self.attention(x)
+        x = residual + attn_out
 
         residual = x
-        x = x.view(batch_size * seq_len, n_embd)
+        x = x.contiguous().view(batch_size * seq_len, n_embd)
         x = self.ln_2(x)
         x = x.view(batch_size, seq_len, n_embd)
-        x = self.ff(x)
-        x = residual + x
+        ff_out = self.ff(x)
+        x = residual + ff_out
         return x
         ### END YOUR SOLUTION
 
