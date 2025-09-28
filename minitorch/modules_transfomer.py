@@ -134,22 +134,19 @@ class MultiHeadAttention(Module):
         scores = scores * scale_value
 
         if self.causal:
-            mask_values = [
-                [
-                    [
-                        datatype(-1e9) if key_idx > query_idx else datatype(0.0)
-                        for key_idx in range(queries_len)
-                    ]
-                    for query_idx in range(queries_len)
-                ]
+            mask_rows = [
+                [datatype(-1e9) if key_idx > query_idx else datatype(0.0) for key_idx in range(queries_len)]
+                for query_idx in range(queries_len)
             ]
-            mask_values = [mask_values]  # (1, 1, T, T)
-            mask = tensor(
-                mask_values,
+            full_mask = tensor(
+                [
+                    [mask_rows for _ in range(num_head)]
+                    for _ in range(batch_size)
+                ],
                 backend=self.backend,
                 requires_grad=False,
             )
-            scores = scores + mask
+            scores = scores + full_mask
 
         attn = softmax(scores, dim=3)
         attn = self.dropout(attn)
