@@ -119,41 +119,27 @@ class MultiHeadAttention(Module):
         ### BEGIN ASSIGN3_3
         q = q.contiguous()
         kT = kT.contiguous()
-        # Compute attention scores with pure elementwise ops to avoid backend matmul quirks.
-        k = kT.permute(0, 1, 3, 2).contiguous()
-
-        q_expanded = q.contiguous().view(batch_size, num_head, queries_len, 1, q_dim)
-        k_expanded = k.view(batch_size, num_head, 1, queries_len, q_dim)
-        scores = (q_expanded * k_expanded).sum(dim=4).view(batch_size, num_head, queries_len, queries_len)
+        q_flat = q.contiguous().view(batch_size * num_head, queries_len, q_dim)
+        kT_flat = kT.contiguous().view(batch_size * num_head, q_dim, queries_len)
+        scores = (q_flat @ kT_flat).view(batch_size, num_head, queries_len, queries_len)
 
         scale_value = tensor(
-            [datatype(float(self.attn_hidden_dim) ** -0.5)],
+            [datatype(1.0 / (self.attn_hidden_dim ** 0.5))],
             backend=self.backend,
             requires_grad=False,
         )
         scores = scores * scale_value
 
         if self.causal:
-            mask_rows = [
-                [datatype(-1e9) if key_idx > query_idx else datatype(0.0) for key_idx in range(queries_len)]
-                for query_idx in range(queries_len)
-            ]
-            full_mask = tensor(
-                [
-                    [mask_rows for _ in range(num_head)]
-                    for _ in range(batch_size)
-                ],
-                backend=self.backend,
-                requires_grad=False,
-            )
-            scores = scores + full_mask
+            mask = self.create_causal_mask(queries_len)
+            scores = scores + mask
 
         attn = softmax(scores, dim=3)
         attn = self.dropout(attn)
 
-        attn_expanded = attn.contiguous().view(batch_size, num_head, queries_len, queries_len, 1)
-        v_expanded = v.contiguous().view(batch_size, num_head, 1, queries_len, v_dim)
-        context = (attn_expanded * v_expanded).sum(dim=3).view(batch_size, num_head, queries_len, v_dim)
+        attn_flat = attn.contiguous().view(batch_size * num_head, queries_len, queries_len)
+        v_flat = v.contiguous().view(batch_size * num_head, queries_len, v_dim)
+        context = (attn_flat @ v_flat).view(batch_size, num_head, queries_len, v_dim)
 
         context = context.permute(0, 2, 1, 3).contiguous()
         context = context.view(batch_size, queries_len, self.n_embd)
