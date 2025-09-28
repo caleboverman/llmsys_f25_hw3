@@ -127,7 +127,7 @@ class MultiHeadAttention(Module):
         scores = (q_expanded * k_expanded).sum(dim=4).view(batch_size, num_head, queries_len, queries_len)
 
         scale_value = tensor(
-            [float(self.attn_hidden_dim) ** -0.5],
+            [datatype(float(self.attn_hidden_dim) ** -0.5)],
             backend=self.backend,
             requires_grad=False,
         )
@@ -136,7 +136,10 @@ class MultiHeadAttention(Module):
         if self.causal:
             mask_values = [
                 [
-                    [-1e9 if key_idx > query_idx else 0.0 for key_idx in range(queries_len)]
+                    [
+                        datatype(-1e9) if key_idx > query_idx else datatype(0.0)
+                        for key_idx in range(queries_len)
+                    ]
                     for query_idx in range(queries_len)
                 ]
             ]
