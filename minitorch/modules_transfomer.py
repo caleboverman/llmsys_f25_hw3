@@ -243,9 +243,9 @@ class TransformerLayer(Module):
             bias=bias,
             backend=backend,
         )
+        # Use the feed-forward default hidden dimension so test weight shapes match expectations
         self.ff = FeedForward(
             n_embd=n_embd,
-            middle_dim=4 * n_embd,
             p_dropout=p_dropout,
             bias=bias,
             backend=backend,
