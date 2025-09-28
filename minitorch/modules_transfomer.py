@@ -119,7 +119,10 @@ class MultiHeadAttention(Module):
         ### BEGIN ASSIGN3_3
         q = q.contiguous()
         kT = kT.contiguous()
-        scores = q @ kT
+        # Flatten the head dimension so our matmul sees standard 3D tensors.
+        q_flat = q.contiguous().view(batch_size * num_head, queries_len, q_dim)
+        kT_flat = kT.contiguous().view(batch_size * num_head, q_dim, queries_len)
+        scores = (q_flat @ kT_flat).view(batch_size, num_head, queries_len, queries_len)
 
         scale = tensor_from_numpy(
             np.array(1.0 / np.sqrt(self.attn_hidden_dim), dtype=datatype),
@@ -137,8 +140,9 @@ class MultiHeadAttention(Module):
         attn = softmax(scores, dim=3)
         attn = self.dropout(attn)
 
-        v = v.contiguous()
-        context = attn @ v
+        v_flat = v.contiguous().view(batch_size * num_head, queries_len, v_dim)
+        attn_flat = attn.contiguous().view(batch_size * num_head, queries_len, queries_len)
+        context = (attn_flat @ v_flat).view(batch_size, num_head, queries_len, v_dim)
 
         context = context.permute(0, 2, 1, 3).contiguous()
         context = context.view(batch_size, queries_len, self.n_embd)
