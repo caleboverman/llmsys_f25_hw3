@@ -134,7 +134,18 @@ class MultiHeadAttention(Module):
         scores = scores * scale_value
 
         if self.causal:
-            mask = self.create_causal_mask(queries_len)
+            mask_values = [
+                [
+                    [-1e9 if key_idx > query_idx else 0.0 for key_idx in range(queries_len)]
+                    for query_idx in range(queries_len)
+                ]
+            ]
+            mask_values = [mask_values]  # (1, 1, T, T)
+            mask = tensor(
+                mask_values,
+                backend=self.backend,
+                requires_grad=False,
+            )
             scores = scores + mask
 
         attn = softmax(scores, dim=3)
