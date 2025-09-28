@@ -322,16 +322,43 @@ class DecoderLM(Module):
         self.n_embd = n_embd
         self.n_vocab = n_vocab
         ### BEGIN ASSIGN3_3
-        raise NotImplementedError
-        # self.token_embeddings = 
-        # self.position_embeddings = 
-        # self.t_layer_1 = 
-        # self.t_layer_2 = 
-        # self.t_layer_3 = 
-        # self.t_layer_4 = 
-        # self.dropout = 
-        # self.ln = 
-        # self.lm_head = 
+        self.token_embeddings = Embedding(n_vocab, n_embd, backend=backend)
+        self.position_embeddings = Embedding(n_positions, n_embd, backend=backend)
+        self.t_layer_1 = TransformerLayer(
+            n_embd=n_embd,
+            n_head=n_head,
+            p_dropout=p_dropout,
+            ln_eps=ln_eps,
+            bias=bias,
+            backend=backend,
+        )
+        self.t_layer_2 = TransformerLayer(
+            n_embd=n_embd,
+            n_head=n_head,
+            p_dropout=p_dropout,
+            ln_eps=ln_eps,
+            bias=bias,
+            backend=backend,
+        )
+        self.t_layer_3 = TransformerLayer(
+            n_embd=n_embd,
+            n_head=n_head,
+            p_dropout=p_dropout,
+            ln_eps=ln_eps,
+            bias=bias,
+            backend=backend,
+        )
+        self.t_layer_4 = TransformerLayer(
+            n_embd=n_embd,
+            n_head=n_head,
+            p_dropout=p_dropout,
+            ln_eps=ln_eps,
+            bias=bias,
+            backend=backend,
+        )
+        self.dropout = Dropout(p_dropout)
+        self.ln = LayerNorm1d(n_embd, eps=ln_eps, backend=backend)
+        self.lm_head = Linear(n_embd, n_vocab, bias=bias, backend=backend)
         ### END ASSIGN3_3
     
     def forward(self, idx):
@@ -348,15 +375,21 @@ class DecoderLM(Module):
         batch_size, seq_len = idx.shape
 
         ### BEGIN ASSIGN3_3
-        raise NotImplementedError
-        # 1. Get token embeddings of shape (batch_size, seq_len, n_embd)
-        # 2. Create positional embeddings of shape (1, seq_len, n_embd):
-        #    - Create position ids tensor [0, 1, 2, ..., seq_len-1] of shape (1, seq_len)
-        #    - Pass through positional embedding layer
-        #    - Ensure output shape is (1, seq_len, n_embd)
-        # 3. Add token and positional embeddings
-        # 4. Apply dropout
-        # 5. Pass through transformer layers (t_layer_1 to t_layer_4)
-        # 6. Apply final layer normalization
-        # 7. Project to vocabulary size using lm_head
+        token_embeddings = self.token_embeddings(idx)
+        position_ids = np.arange(seq_len, dtype=np.int32)
+        position_ids = np.expand_dims(position_ids, axis=0)
+        pos_tensor = tensor_from_numpy(position_ids, backend=self.backend, requires_grad=False)
+        position_embeddings = self.position_embeddings(pos_tensor)
+        x = token_embeddings + position_embeddings
+        x = self.dropout(x)
+        x = self.t_layer_1(x)
+        x = self.t_layer_2(x)
+        x = self.t_layer_3(x)
+        x = self.t_layer_4(x)
+        x_flat = x.view(batch_size * seq_len, self.n_embd)
+        x_norm = self.ln(x_flat)
+        x_norm = x_norm.view(batch_size, seq_len, self.n_embd)
+        logits = self.lm_head(x_norm.view(batch_size * seq_len, self.n_embd))
+        logits = logits.view(batch_size, seq_len, self.n_vocab)
+        return logits
         ### END ASSIGN3_3
