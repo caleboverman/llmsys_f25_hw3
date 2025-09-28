@@ -99,6 +99,7 @@ class MultiHeadAttention(Module):
         kT = k.permute(0, 1, 3, 2).contiguous()
         ### END ASSIGN3_3
         return q, kT, v
+
     def self_attention(self, q, kT, v):
         """
         Compute self-attention: softmax((q @ kT) / sqrt(attn_hidden_dim)) @ v.
@@ -149,6 +150,7 @@ class MultiHeadAttention(Module):
         ### END ASSIGN3_3
 
         return result
+    
     def forward(self, x):
         """
         Compute multi-head attention with optional causal masking.
