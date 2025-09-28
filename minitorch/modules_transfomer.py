@@ -126,6 +126,16 @@ class MultiHeadAttention(Module):
         print(f"DEBUG QKV: k_linear[0,0,:8]: {k_linear.to_numpy()[0, 0, :8]}")
         print(f"DEBUG QKV: v_linear[0,0,:8]: {v_linear.to_numpy()[0, 0, :8]}")
 
+        x_np_flat = x.to_numpy().reshape(batch_size * seq_len, n_embd)
+        w_q_np = self.q_projection.weights.value.to_numpy()
+        w_k_np = self.k_projection.weights.value.to_numpy()
+        w_v_np = self.v_projection.weights.value.to_numpy()
+        q_np_target = x_np_flat @ w_q_np
+        k_np_target = x_np_flat @ w_k_np
+        v_np_target = x_np_flat @ w_v_np
+        print(f"DEBUG QKV: max|q - q_np| {np.max(np.abs(q2d.to_numpy() - q_np_target)):.6e}")
+        print(f"DEBUG QKV: max|v - v_np| {np.max(np.abs(v2d.to_numpy() - v_np_target)):.6e}")
+
         # Reshape and permute for multi-head attention
         print(f"DEBUG QKV: self.n_head = {self.n_head}, self.attn_hidden_dim = {self.attn_hidden_dim}")
 
@@ -168,7 +178,7 @@ class MultiHeadAttention(Module):
         print(f"DEBUG: v sample values: {v.to_numpy()[0, 0, 0, :5]}")
 
         # Compute scaled dot-product attention scores
-        scores = q @ kT
+        scores = (q.view(batch_size, num_head, queries_len, q_dim, 1) * kT.view(batch_size, num_head, 1, q_dim, queries_len)).sum(dim=3)
         print(f"DEBUG: scores shape: {scores.shape}")
         print(f"DEBUG: scores before scaling: {scores.to_numpy()[0, 0, 0, :5]}")
         print(f"DEBUG: scores range before scaling: [{scores.to_numpy().min():.6f}, {scores.to_numpy().max():.6f}]")
@@ -207,7 +217,7 @@ class MultiHeadAttention(Module):
         print(f"DEBUG: attn after dropout range: [{attn.to_numpy().min():.6f}, {attn.to_numpy().max():.6f}]")
 
         # Compute weighted sum of values
-        context = attn @ v
+        context = (attn.view(batch_size, num_head, queries_len, kT.shape[-1], 1) * v.view(batch_size, num_head, 1, v.shape[2], v_dim)).sum(dim=3)
         print(f"DEBUG: context[0,0,0,:8]: {context.to_numpy()[0, 0, 0, :8]}")
 
         # Reshape for output projection: (B, H, T, D) -> (B, T, H, D) -> (B, T, n_embd)
@@ -235,6 +245,35 @@ class MultiHeadAttention(Module):
         manual_np_T = context_np @ weight_np.T
         print(f"DEBUG: manual np matmul row0[:8]: {manual_np[0, :8]}")
         print(f"DEBUG: manual np matmul (transposed) row0[:8]: {manual_np_T[0, :8]}")
+
+        # Full numpy reimplementation for sanity
+        x_np = x.to_numpy().reshape(batch_size * seq_len, n_embd)
+        w_q_np = self.q_projection.weights.value.to_numpy()
+        w_k_np = self.k_projection.weights.value.to_numpy()
+        w_v_np = self.v_projection.weights.value.to_numpy()
+        w_out_np = self.out_projection.weights.value.to_numpy()
+
+        q_np = x_np @ w_q_np
+        k_np = x_np @ w_k_np
+        v_np = x_np @ w_v_np
+
+        q_np = q_np.reshape(batch_size, seq_len, self.n_head, self.attn_hidden_dim).transpose(0, 2, 1, 3)
+        k_np = k_np.reshape(batch_size, seq_len, self.n_head, self.attn_hidden_dim).transpose(0, 2, 1, 3)
+        v_np = v_np.reshape(batch_size, seq_len, self.n_head, self.attn_hidden_dim).transpose(0, 2, 1, 3)
+        kT_np = k_np.transpose(0, 1, 3, 2)
+
+        scores_np = np.matmul(q_np, kT_np) / np.sqrt(self.attn_hidden_dim)
+        if self.causal:
+            mask_np = self.create_causal_mask(queries_len).to_numpy()
+            scores_np = scores_np + mask_np
+        attn_np = np.exp(scores_np - scores_np.max(axis=-1, keepdims=True))
+        attn_np = attn_np / attn_np.sum(axis=-1, keepdims=True)
+        context_np_bhtd = np.matmul(attn_np, v_np)
+        context_np_manual = context_np_bhtd.transpose(0, 2, 1, 3).reshape(batch_size, queries_len, self.n_embd)
+        result_np_manual = context_np_manual.reshape(batch_size * queries_len, self.n_embd) @ w_out_np
+        result_np_manual = result_np_manual.reshape(batch_size, queries_len, self.n_embd)
+        print(f"DEBUG: context diff max {np.max(np.abs(context_np_bhtd - context.to_numpy())):.6e}")
+        print(f"DEBUG: manual full numpy row0[:8]: {result_np_manual[0, 0, :8]}")
 
         result = result2d.view(batch_size, queries_len, self.n_embd)
         print(f"DEBUG: final result shape: {result.shape}")
