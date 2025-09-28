@@ -131,6 +131,7 @@ class MultiHeadAttention(Module):
 
         if self.causal:
             mask = self.create_causal_mask(queries_len)
+            mask = (mask < 0.0) * -1e9
             scores = scores + mask
 
         attn = softmax(scores, dim=3)
