@@ -126,13 +126,12 @@ class MultiHeadAttention(Module):
         k_expanded = k.view(batch_size, num_head, 1, queries_len, q_dim)
         scores = (q_expanded * k_expanded).sum(dim=4).view(batch_size, num_head, queries_len, queries_len)
 
-        denom = tensor(
-            [float(self.attn_hidden_dim)],
+        scale_value = tensor(
+            [float(self.attn_hidden_dim) ** -0.5],
             backend=self.backend,
             requires_grad=False,
         )
-        denom = denom ** tensor([0.5], backend=self.backend, requires_grad=False)
-        scores = scores / denom
+        scores = scores * scale_value
 
         if self.causal:
             mask = self.create_causal_mask(queries_len)
