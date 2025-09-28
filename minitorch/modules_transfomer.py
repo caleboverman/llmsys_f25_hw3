@@ -52,16 +52,6 @@ class MultiHeadAttention(Module):
         self.dropout = Dropout(p_dropout)
         ### END ASSIGN3_3
 
-    def _apply_linear(self, x2d, weight_param: Parameter, bias_param: Optional[Parameter]):
-        """Manual linear projection to avoid backend matmul issues."""
-        weight = weight_param.value.contiguous()
-        x_contig = x2d.contiguous()
-        out = (x_contig.view(x_contig.shape[0], x_contig.shape[1], 1) * weight.view(1, weight.shape[0], weight.shape[1])).sum(dim=1)
-        out = out.view(x2d.shape[0], weight.shape[1])
-        if bias_param is not None:
-            out = out + bias_param.value
-        return out
-
     def create_causal_mask(self, seq_len):
         """
         Create a causal mask for self-attention to prevent information leakage.
@@ -96,62 +86,19 @@ class MultiHeadAttention(Module):
         """
         batch_size, seq_len, n_embd = x.shape
         ### BEGIN ASSIGN3_3
-        print(f"DEBUG QKV: Input x shape: {x.shape}")
-        print(f"DEBUG QKV: Input x first values: {x.to_numpy()[0, 0, :5]}")
-        print(f"DEBUG QKV: Input x range: [{x.to_numpy().min():.6f}, {x.to_numpy().max():.6f}]")
-
         x2d = x.view(batch_size * seq_len, n_embd)
-        print(f"DEBUG QKV: x2d shape: {x2d.shape}")
-        print(f"DEBUG QKV: x2d[0,:8]: {x2d.to_numpy()[0, :8]}")
 
-        print(f"DEBUG QKV: q_projection weights shape: {self.q_projection.weights.value.shape}")
-        print(f"DEBUG QKV: k_projection weights shape: {self.k_projection.weights.value.shape}")
-        print(f"DEBUG QKV: v_projection weights shape: {self.v_projection.weights.value.shape}")
-        print(f"DEBUG QKV: q_projection weights[0,:8]: {self.q_projection.weights.value.to_numpy()[0, :8]}")
+        q2d = self.q_projection(x2d)
+        k2d = self.k_projection(x2d)
+        v2d = self.v_projection(x2d)
 
-        q2d = self._apply_linear(x2d, self.q_projection.weights, self.q_projection.bias)
-        k2d = self._apply_linear(x2d, self.k_projection.weights, self.k_projection.bias)
-        v2d = self._apply_linear(x2d, self.v_projection.weights, self.v_projection.bias)
-
-        print(f"DEBUG QKV: q2d shape: {q2d.shape}")
-        print(f"DEBUG QKV: q2d[0,:8]: {q2d.to_numpy()[0, :8]}")
-        print(f"DEBUG QKV: k2d[0,:8]: {k2d.to_numpy()[0, :8]}")
-        print(f"DEBUG QKV: v2d[0,:8]: {v2d.to_numpy()[0, :8]}")
-
-        q_linear = q2d.view(batch_size, seq_len, n_embd)
-        k_linear = k2d.view(batch_size, seq_len, n_embd)
-        v_linear = v2d.view(batch_size, seq_len, n_embd)
-
-        print(f"DEBUG QKV: q_linear[0,0,:8]: {q_linear.to_numpy()[0, 0, :8]}")
-        print(f"DEBUG QKV: k_linear[0,0,:8]: {k_linear.to_numpy()[0, 0, :8]}")
-        print(f"DEBUG QKV: v_linear[0,0,:8]: {v_linear.to_numpy()[0, 0, :8]}")
-
-        x_np_flat = x.to_numpy().reshape(batch_size * seq_len, n_embd)
-        w_q_np = self.q_projection.weights.value.to_numpy()
-        w_k_np = self.k_projection.weights.value.to_numpy()
-        w_v_np = self.v_projection.weights.value.to_numpy()
-        q_np_target = x_np_flat @ w_q_np
-        k_np_target = x_np_flat @ w_k_np
-        v_np_target = x_np_flat @ w_v_np
-        print(f"DEBUG QKV: max|q - q_np| {np.max(np.abs(q2d.to_numpy() - q_np_target)):.6e}")
-        print(f"DEBUG QKV: max|v - v_np| {np.max(np.abs(v2d.to_numpy() - v_np_target)):.6e}")
-
-        # Reshape and permute for multi-head attention
-        print(f"DEBUG QKV: self.n_head = {self.n_head}, self.attn_hidden_dim = {self.attn_hidden_dim}")
-
-        q = q_linear.view(batch_size, seq_len, self.n_head, self.attn_hidden_dim).permute(0, 2, 1, 3).contiguous()
-        k = k_linear.view(batch_size, seq_len, self.n_head, self.attn_hidden_dim).permute(0, 2, 1, 3).contiguous()
-        v = v_linear.view(batch_size, seq_len, self.n_head, self.attn_hidden_dim).permute(0, 2, 1, 3).contiguous()
-
-        print(f"DEBUG QKV: q[0,0,0,:8]: {q.to_numpy()[0, 0, 0, :8]}")
-        print(f"DEBUG QKV: k[0,0,0,:8]: {k.to_numpy()[0, 0, 0, :8]}")
-        print(f"DEBUG QKV: v[0,0,0,:8]: {v.to_numpy()[0, 0, 0, :8]}")
+        q = q2d.view(batch_size, seq_len, self.n_head, self.attn_hidden_dim).permute(0, 2, 1, 3).contiguous()
+        k = k2d.view(batch_size, seq_len, self.n_head, self.attn_hidden_dim).permute(0, 2, 1, 3).contiguous()
+        v = v2d.view(batch_size, seq_len, self.n_head, self.attn_hidden_dim).permute(0, 2, 1, 3).contiguous()
 
         kT = k.permute(0, 1, 3, 2).contiguous()
-        print(f"DEBUG QKV: kT[0,0,:8,0]: {kT.to_numpy()[0, 0, :8, 0]}")
         ### END ASSIGN3_3
         return q, kT, v
-
     def self_attention(self, q, kT, v):
         """
         Compute self-attention: softmax((q @ kT) / sqrt(attn_hidden_dim)) @ v.
@@ -168,121 +115,40 @@ class MultiHeadAttention(Module):
         _, _, k_dim, _ = kT.shape
         _, _, _, v_dim = v.shape
         assert q_dim == k_dim == v_dim
-        result = None
-
         ### BEGIN ASSIGN3_3
-        print(f"DEBUG: Input tensor shapes - q: {q.shape}, kT: {kT.shape}, v: {v.shape}")
-        print(f"DEBUG: self.attn_hidden_dim: {self.attn_hidden_dim}")
-        print(f"DEBUG: q sample values: {q.to_numpy()[0, 0, 0, :5]}")
-        print(f"DEBUG: kT sample values: {kT.to_numpy()[0, 0, :5, 0]}")
-        print(f"DEBUG: v sample values: {v.to_numpy()[0, 0, 0, :5]}")
+        q = q.contiguous()
+        kT = kT.contiguous()
+        scores = q @ kT
 
-        # Compute scaled dot-product attention scores
-        scores = (q.view(batch_size, num_head, queries_len, q_dim, 1) * kT.view(batch_size, num_head, 1, q_dim, queries_len)).sum(dim=3)
-        print(f"DEBUG: scores shape: {scores.shape}")
-        print(f"DEBUG: scores before scaling: {scores.to_numpy()[0, 0, 0, :5]}")
-        print(f"DEBUG: scores range before scaling: [{scores.to_numpy().min():.6f}, {scores.to_numpy().max():.6f}]")
-
-        scale = 1.0 / np.sqrt(self.attn_hidden_dim)
-        print(f"DEBUG: scale value: {[scale]}")
+        scale = tensor_from_numpy(
+            np.array(1.0 / np.sqrt(self.attn_hidden_dim), dtype=datatype),
+            backend=self.backend
+        )
         scores = scores * scale
-        print(f"DEBUG: scores after scaling: {scores.to_numpy()[0, 0, 0, :5]}")
-        print(f"DEBUG: scores range after scaling: [{scores.to_numpy().min():.6f}, {scores.to_numpy().max():.6f}]")
 
-        # Apply causal mask if needed
         if self.causal:
             mask = self.create_causal_mask(queries_len)
-            print(f"DEBUG: mask shape: {mask.shape}")
-            print(f"DEBUG: original mask sample: {mask.to_numpy()[0, 0, :3, :3]}")
-            print(f"DEBUG: original mask range: [{mask.to_numpy().min():.6f}, {mask.to_numpy().max():.6f}]")
-
-            # Clamp mask values to prevent numerical issues
             mask_np = mask.to_numpy()
             mask_np = np.where(mask_np < -1e9, -1e9, mask_np)
             mask = tensor_from_numpy(mask_np, backend=self.backend)
-            print(f"DEBUG: clamped mask range: [{mask.to_numpy().min():.6f}, {mask.to_numpy().max():.6f}]")
-
             scores = scores + mask
-            print(f"DEBUG: scores+mask first row: {scores.to_numpy()[0, 0, 0, :5]}")
-            print(f"DEBUG: scores+mask range: [{scores.to_numpy().min():.6f}, {scores.to_numpy().max():.6f}]")
 
-        # Apply softmax to get attention weights
         attn = softmax(scores, dim=3)
-        print(f"DEBUG: attn[0,0,0,:8]: {attn.to_numpy()[0, 0, 0, :8]}")
-        print(f"DEBUG: attn sums: {attn.to_numpy().sum(axis=-1)[0, 0, :8]}")
-
-        # Apply dropout
         attn = self.dropout(attn)
-        print(f"DEBUG: attn after dropout first row: {attn.to_numpy()[0, 0, 0, :5]}")
-        print(f"DEBUG: attn after dropout range: [{attn.to_numpy().min():.6f}, {attn.to_numpy().max():.6f}]")
 
-        # Compute weighted sum of values
-        context = (attn.view(batch_size, num_head, queries_len, kT.shape[-1], 1) * v.view(batch_size, num_head, 1, v.shape[2], v_dim)).sum(dim=3)
-        print(f"DEBUG: context[0,0,0,:8]: {context.to_numpy()[0, 0, 0, :8]}")
+        v = v.contiguous()
+        context = attn @ v
 
-        # Reshape for output projection: (B, H, T, D) -> (B, T, H, D) -> (B, T, n_embd)
         context = context.permute(0, 2, 1, 3).contiguous()
-        print(f"DEBUG: context after permute shape: {context.shape}")
         context = context.view(batch_size, queries_len, self.n_embd)
-        print(f"DEBUG: context reshaped[0,0,:8]: {context.to_numpy()[0, 0, :8]}")
 
-        # Apply output projection
         context2d = context.view(batch_size * queries_len, self.n_embd)
-        print(f"DEBUG: context2d shape: {context2d.shape}")
-        print(f"DEBUG: context2d first values: {context2d.to_numpy()[0, :5]}")
-        print(f"DEBUG: context2d range: [{context2d.to_numpy().min():.6f}, {context2d.to_numpy().max():.6f}]")
-
-        result2d = self._apply_linear(context2d, self.out_projection.weights, self.out_projection.bias)
-        result2d_np = result2d.to_numpy()
-        print(f"DEBUG: result2d[0,:8]: {result2d_np[0, :8]}")
-        print(f"DEBUG: result2d[0,32:40]: {result2d_np[0, 32:40]}")
-        nz_counts = (abs(result2d_np) > 1e-12).sum()
-        print(f"DEBUG: result2d nonzero count: {nz_counts}/{result2d_np.size}")
-
-        context_np = context2d.to_numpy()
-        weight_np = self.out_projection.weights.value.to_numpy()
-        manual_np = context_np @ weight_np
-        manual_np_T = context_np @ weight_np.T
-        print(f"DEBUG: manual np matmul row0[:8]: {manual_np[0, :8]}")
-        print(f"DEBUG: manual np matmul (transposed) row0[:8]: {manual_np_T[0, :8]}")
-
-        # Full numpy reimplementation for sanity
-        x_np = x.to_numpy().reshape(batch_size * seq_len, n_embd)
-        w_q_np = self.q_projection.weights.value.to_numpy()
-        w_k_np = self.k_projection.weights.value.to_numpy()
-        w_v_np = self.v_projection.weights.value.to_numpy()
-        w_out_np = self.out_projection.weights.value.to_numpy()
-
-        q_np = x_np @ w_q_np
-        k_np = x_np @ w_k_np
-        v_np = x_np @ w_v_np
-
-        q_np = q_np.reshape(batch_size, seq_len, self.n_head, self.attn_hidden_dim).transpose(0, 2, 1, 3)
-        k_np = k_np.reshape(batch_size, seq_len, self.n_head, self.attn_hidden_dim).transpose(0, 2, 1, 3)
-        v_np = v_np.reshape(batch_size, seq_len, self.n_head, self.attn_hidden_dim).transpose(0, 2, 1, 3)
-        kT_np = k_np.transpose(0, 1, 3, 2)
-
-        scores_np = np.matmul(q_np, kT_np) / np.sqrt(self.attn_hidden_dim)
-        if self.causal:
-            mask_np = self.create_causal_mask(queries_len).to_numpy()
-            scores_np = scores_np + mask_np
-        attn_np = np.exp(scores_np - scores_np.max(axis=-1, keepdims=True))
-        attn_np = attn_np / attn_np.sum(axis=-1, keepdims=True)
-        context_np_bhtd = np.matmul(attn_np, v_np)
-        context_np_manual = context_np_bhtd.transpose(0, 2, 1, 3).reshape(batch_size, queries_len, self.n_embd)
-        result_np_manual = context_np_manual.reshape(batch_size * queries_len, self.n_embd) @ w_out_np
-        result_np_manual = result_np_manual.reshape(batch_size, queries_len, self.n_embd)
-        print(f"DEBUG: context diff max {np.max(np.abs(context_np_bhtd - context.to_numpy())):.6e}")
-        print(f"DEBUG: manual full numpy row0[:8]: {result_np_manual[0, 0, :8]}")
+        result2d = self.out_projection(context2d)
 
         result = result2d.view(batch_size, queries_len, self.n_embd)
-        print(f"DEBUG: final result shape: {result.shape}")
-        print(f"DEBUG: final result first values: {result.to_numpy()[0, 0, :5]}")
-        print(f"DEBUG: final result range: [{result.to_numpy().min():.6f}, {result.to_numpy().max():.6f}]")
         ### END ASSIGN3_3
 
         return result
-
     def forward(self, x):
         """
         Compute multi-head attention with optional causal masking.
@@ -295,31 +161,10 @@ class MultiHeadAttention(Module):
         """
         batch_size, seq_len, n_embd = x.shape
         ### BEGIN ASSIGN3_3
-        print(f"DEBUG FORWARD: Input x shape: {x.shape}")
-        print(f"DEBUG FORWARD: Input x first values: {x.to_numpy()[0, 0, :5]}")
-        print(f"DEBUG FORWARD: Input x range: [{x.to_numpy().min():.6f}, {x.to_numpy().max():.6f}]")
-        print(f"DEBUG FORWARD: self.n_embd={self.n_embd}, self.n_head={self.n_head}, self.attn_hidden_dim={self.attn_hidden_dim}")
-        print(f"DEBUG FORWARD: self.causal={self.causal}")
-
-        print("=" * 50)
-        print("CALLING project_to_query_key_value")
-        print("=" * 50)
         q, kT, v = self.project_to_query_key_value(x)
-
-        print("=" * 50)
-        print("CALLING self_attention")
-        print("=" * 50)
         out = self.self_attention(q, kT, v)
-
-        print("=" * 50)
-        print("FORWARD COMPLETE")
-        print("=" * 50)
-        print(f"DEBUG FORWARD: Output shape: {out.shape}")
-        print(f"DEBUG FORWARD: Output first values: {out.to_numpy()[0, 0, :5]}")
-        print(f"DEBUG FORWARD: Output range: [{out.to_numpy().min():.6f}, {out.to_numpy().max():.6f}]")
         return out
         ### END ASSIGN3_3
-
 
 class FeedForward(Module):
     def __init__(self, n_embd: int, middle_dim: int=256, p_dropout: float=0.1, bias: bool=True, backend: TensorBackend=None):
