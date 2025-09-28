@@ -54,7 +54,7 @@ class MultiHeadAttention(Module):
 
     def _apply_linear(self, x2d, weight_param: Parameter, bias_param: Optional[Parameter]):
         """Manual linear projection to avoid backend matmul issues."""
-        weight = weight_param.value.contiguous()
+        weight = weight_param.value.permute(1, 0).contiguous()
         x_contig = x2d.contiguous()
         out = (x_contig.view(x_contig.shape[0], x_contig.shape[1], 1) * weight.view(1, weight.shape[0], weight.shape[1])).sum(dim=1)
         out = out.view(x2d.shape[0], weight.shape[1])
@@ -232,7 +232,9 @@ class MultiHeadAttention(Module):
         context_np = context2d.to_numpy()
         weight_np = self.out_projection.weights.value.to_numpy()
         manual_np = context_np @ weight_np
+        manual_np_T = context_np @ weight_np.T
         print(f"DEBUG: manual np matmul row0[:8]: {manual_np[0, :8]}")
+        print(f"DEBUG: manual np matmul (transposed) row0[:8]: {manual_np_T[0, :8]}")
 
         result = result2d.view(batch_size, queries_len, self.n_embd)
         print(f"DEBUG: final result shape: {result.shape}")
