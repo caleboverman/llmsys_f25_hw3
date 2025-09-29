@@ -137,13 +137,13 @@ class MultiHeadAttention(Module):
 
         q_flat = q.view(batch_size * num_head, queries_len, q_dim)
         kT_flat = kT.view(batch_size * num_head, q_dim, queries_len)
-        scores = (q_flat @ kT_flat).view(batch_size, num_head, queries_len, queries_len)
+        scores = (q_flat @ kT_flat).view(batch_size, num_head, queries_len, queries_len).contiguous()
 
         scale = tensor(
             [datatype(1.0 / (self.attn_hidden_dim ** 0.5))],
             backend=self.backend,
             requires_grad=False,
-        )
+        ).view(1, 1, 1, 1)
         scores = scores * scale
 
         if self.causal:
@@ -152,10 +152,11 @@ class MultiHeadAttention(Module):
 
         attn = softmax(scores, dim=3)
         attn = self.dropout(attn)
+        attn = attn.contiguous()
 
         attn_flat = attn.view(batch_size * num_head, queries_len, queries_len)
         v_flat = v.view(batch_size * num_head, queries_len, v_dim)
-        context = (attn_flat @ v_flat).view(batch_size, num_head, queries_len, v_dim)
+        context = (attn_flat @ v_flat).view(batch_size, num_head, queries_len, v_dim).contiguous()
 
         # Reshape back to (batch_size, seq_len, n_embd)
         context = context.permute(0, 2, 1, 3).contiguous()
