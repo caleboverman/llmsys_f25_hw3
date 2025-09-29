@@ -301,9 +301,6 @@ def generate(
 
         while len(token_ids) <= model_max_length:
             # BEGIN ASSIGN3_4
-            # run the model with current token_ids, and predict the next token (gen_id)
-            # hint: obtain the logits of next token, and take the argmax.
-
             input_ids = minitorch.tensor([token_ids], backend=backend)
             logits = model(idx=input_ids)
             next_token_logits = logits[0, -1, :]
