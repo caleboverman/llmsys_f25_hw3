@@ -86,31 +86,22 @@ class MultiHeadAttention(Module):
         """
         batch_size, seq_len, n_embd = x.shape
         ### BEGIN ASSIGN3_3
-        # Flatten to 2D for linear projections
         x2d = x.contiguous().view(batch_size * seq_len, n_embd)
 
-        # Project to Q, K, V
         q2d = self.q_projection(x2d)
         k2d = self.k_projection(x2d)
         v2d = self.v_projection(x2d)
 
-        # Reshape to (batch_size, seq_len, n_head, attn_hidden_dim)
-        # then permute to (batch_size, n_head, seq_len, attn_hidden_dim)
         q = q2d.view(batch_size, seq_len, self.n_head, self.attn_hidden_dim)
-        q = q.permute(0, 2, 1, 3)
-        q = q.contiguous()
+        q = q.permute(0, 2, 1, 3).contiguous()
 
         k = k2d.view(batch_size, seq_len, self.n_head, self.attn_hidden_dim)
-        k = k.permute(0, 2, 1, 3)
-        k = k.contiguous()
+        k = k.permute(0, 2, 1, 3).contiguous()
 
         v = v2d.view(batch_size, seq_len, self.n_head, self.attn_hidden_dim)
-        v = v.permute(0, 2, 1, 3)
-        v = v.contiguous()
+        v = v.permute(0, 2, 1, 3).contiguous()
 
-        # Transpose K for attention computation
-        kT = k.permute(0, 1, 3, 2)
-        kT = kT.contiguous()
+        kT = k.permute(0, 1, 3, 2).contiguous()
         ### END ASSIGN3_3
         return q, kT, v
 
@@ -155,6 +146,7 @@ class MultiHeadAttention(Module):
 
         attn = softmax(scores, dim=3)
         attn = self.dropout(attn)
+        attn = attn.contiguous()
 
         attn_expanded = attn.view(batch_size, num_head, queries_len, queries_len, 1)
         v_expanded = v.view(batch_size, num_head, 1, queries_len, v_dim)
@@ -163,7 +155,6 @@ class MultiHeadAttention(Module):
         context = context.permute(0, 2, 1, 3).contiguous()
         context = context.view(batch_size, queries_len, self.n_embd)
 
-        # Apply output projection
         context2d = context.contiguous().view(batch_size * queries_len, self.n_embd)
         result2d = self.out_projection(context2d)
         result = result2d.view(batch_size, queries_len, self.n_embd)
@@ -266,7 +257,6 @@ class TransformerLayer(Module):
             bias=bias,
             backend=backend,
         )
-        # Use the feed-forward default hidden dimension so test weight shapes match expectations
         self.ff = FeedForward(
             n_embd=n_embd,
             p_dropout=p_dropout,
