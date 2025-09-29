@@ -87,7 +87,7 @@ class MultiHeadAttention(Module):
         batch_size, seq_len, n_embd = x.shape
         ### BEGIN ASSIGN3_3
         # Flatten to 2D for linear projections
-        x2d = x.view(batch_size * seq_len, n_embd)
+        x2d = x.contiguous().view(batch_size * seq_len, n_embd)
 
         # Project to Q, K, V
         q2d = self.q_projection(x2d)
