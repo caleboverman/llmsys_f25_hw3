@@ -135,11 +135,15 @@ class MultiHeadAttention(Module):
         kT = kT.contiguous()
         v = v.contiguous()
 
-        k = kT.permute(0, 1, 3, 2).contiguous()
+        # Flatten batch and head dimensions for efficient 2D matmul
+        # q: (B, H, S, D_h) -> (B*H, S, D_h)
+        q_flat = q.view(batch_size * num_head, queries_len, q_dim)
+        # kT: (B, H, D_h, S) -> (B*H, D_h, S)
+        kT_flat = kT.view(batch_size * num_head, q_dim, queries_len)
 
-        q_expanded = q.view(batch_size, num_head, queries_len, 1, q_dim)
-        k_expanded = k.view(batch_size, num_head, 1, queries_len, q_dim)
-        scores = (q_expanded * k_expanded).sum(dim=4).view(batch_size, num_head, queries_len, queries_len)
+        # Compute attention scores using 2D matmul
+        scores_flat = q_flat @ kT_flat  # (B*H, S, S)
+        scores = scores_flat.view(batch_size, num_head, queries_len, queries_len)
 
         # Create scale value as a tensor to ensure GPU compatibility
         scale_value = tensor(
@@ -156,9 +160,15 @@ class MultiHeadAttention(Module):
         attn = softmax(scores, dim=3)
         attn = self.dropout(attn)
 
-        attn_expanded = attn.view(batch_size, num_head, queries_len, queries_len, 1)
-        v_expanded = v.view(batch_size, num_head, 1, queries_len, v_dim)
-        context = (attn_expanded * v_expanded).sum(dim=3).view(batch_size, num_head, queries_len, v_dim)
+        # Flatten for efficient 2D matmul with values
+        # attn: (B, H, S, S) -> (B*H, S, S)
+        attn_flat = attn.view(batch_size * num_head, queries_len, queries_len)
+        # v: (B, H, S, D_h) -> (B*H, S, D_h)
+        v_flat = v.view(batch_size * num_head, queries_len, v_dim)
+
+        # Compute context using 2D matmul
+        context_flat = attn_flat @ v_flat  # (B*H, S, D_h)
+        context = context_flat.view(batch_size, num_head, queries_len, v_dim)
 
         context = context.permute(0, 2, 1, 3).contiguous()
         context = context.view(batch_size, queries_len, self.n_embd)
