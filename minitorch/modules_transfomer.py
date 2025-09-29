@@ -127,13 +127,11 @@ class MultiHeadAttention(Module):
         kT = kT.contiguous()
         v = v.contiguous()
 
-        # Flatten to 3D for matmul: (batch*head, seq, dim)
-        q_flat = q.view(batch_size * num_head, queries_len, q_dim)
-        kT_flat = kT.view(batch_size * num_head, q_dim, queries_len)
+        k = kT.permute(0, 1, 3, 2).contiguous()
 
-        # Compute Q @ K^T, then reshape back to 4D
-        scores_flat = q_flat @ kT_flat
-        scores = scores_flat.view(batch_size, num_head, queries_len, queries_len)
+        q_expanded = q.view(batch_size, num_head, queries_len, 1, q_dim)
+        k_expanded = k.view(batch_size, num_head, 1, queries_len, q_dim)
+        scores = (q_expanded * k_expanded).sum(dim=4).view(batch_size, num_head, queries_len, queries_len)
 
         scale_value = tensor(
             [datatype(1.0 / (self.attn_hidden_dim ** 0.5))],
