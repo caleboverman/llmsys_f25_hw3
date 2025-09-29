@@ -141,7 +141,12 @@ class MultiHeadAttention(Module):
         k_expanded = k.view(batch_size, num_head, 1, queries_len, q_dim)
         scores = (q_expanded * k_expanded).sum(dim=4).view(batch_size, num_head, queries_len, queries_len)
 
-        scale_value = 1.0 / (self.attn_hidden_dim ** 0.5)
+        # Create scale value as a tensor to ensure GPU compatibility
+        scale_value = tensor(
+            [datatype(1.0 / (self.attn_hidden_dim ** 0.5))],
+            backend=self.backend,
+            requires_grad=False,
+        ).view(1, 1, 1, 1)
         scores = scores * scale_value
 
         if self.causal:
