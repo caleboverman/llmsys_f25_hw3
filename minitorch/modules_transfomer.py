@@ -122,7 +122,6 @@ class MultiHeadAttention(Module):
         _, _, _, v_dim = v.shape
         assert q_dim == k_dim == v_dim
         ### BEGIN ASSIGN3_3
-        # Make all tensors contiguous before operations
         q = q.contiguous()
         kT = kT.contiguous()
         v = v.contiguous()
