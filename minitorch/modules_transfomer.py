@@ -117,36 +117,35 @@ class MultiHeadAttention(Module):
         _, _, _, v_dim = v.shape
         assert q_dim == k_dim == v_dim
         ### BEGIN ASSIGN3_3
-        q = q.contiguous()
-        kT = kT.contiguous()
-
+        # Compute attention scores: Q @ K^T
         scores = q @ kT
 
-        scale_value = datatype(1.0 / (self.attn_hidden_dim ** 0.5))
-        scores = scores * scale_value
+        # Scale by sqrt(d_k)
+        scale_value = float(self.attn_hidden_dim ** 0.5)
+        scores = scores / scale_value
 
+        # Apply causal mask if needed
         if self.causal:
             mask = self.create_causal_mask(queries_len)
-            clamp = tensor(
-                [datatype(-1e9)],
-                backend=self.backend,
-                requires_grad=False,
-            ).view(1, 1, 1, 1)
-            mask = (mask < clamp) * clamp + (mask >= clamp) * mask
             scores = scores + mask
 
+        # Apply softmax and dropout
         attn = softmax(scores, dim=3)
         attn = self.dropout(attn)
 
-        v = v.contiguous()
+        # Apply attention to values
         context = attn @ v
 
+        # Reshape back to (batch_size, seq_len, n_embd)
+        # context: (batch_size, num_heads, seq_len, attn_hidden_dim)
+        # -> (batch_size, seq_len, num_heads, attn_hidden_dim)
         context = context.permute(0, 2, 1, 3).contiguous()
+        # -> (batch_size, seq_len, n_embd)
         context = context.view(batch_size, queries_len, self.n_embd)
 
-        context2d = context.contiguous().view(batch_size * queries_len, self.n_embd)
+        # Apply output projection
+        context2d = context.view(batch_size * queries_len, self.n_embd)
         result2d = self.out_projection(context2d)
-
         result = result2d.view(batch_size, queries_len, self.n_embd)
         ### END ASSIGN3_3
 
