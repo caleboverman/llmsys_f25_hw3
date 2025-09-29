@@ -86,17 +86,31 @@ class MultiHeadAttention(Module):
         """
         batch_size, seq_len, n_embd = x.shape
         ### BEGIN ASSIGN3_3
-        x2d = x.contiguous().view(batch_size * seq_len, n_embd)
+        # Flatten to 2D for linear projections
+        x2d = x.view(batch_size * seq_len, n_embd)
 
+        # Project to Q, K, V
         q2d = self.q_projection(x2d)
         k2d = self.k_projection(x2d)
         v2d = self.v_projection(x2d)
 
-        q = q2d.view(batch_size, seq_len, self.n_head, self.attn_hidden_dim).permute(0, 2, 1, 3).contiguous()
-        k = k2d.view(batch_size, seq_len, self.n_head, self.attn_hidden_dim).permute(0, 2, 1, 3).contiguous()
-        v = v2d.view(batch_size, seq_len, self.n_head, self.attn_hidden_dim).permute(0, 2, 1, 3).contiguous()
+        # Reshape to (batch_size, seq_len, n_head, attn_hidden_dim)
+        # then permute to (batch_size, n_head, seq_len, attn_hidden_dim)
+        q = q2d.view(batch_size, seq_len, self.n_head, self.attn_hidden_dim)
+        q = q.permute(0, 2, 1, 3)
+        q = q.contiguous()
 
-        kT = k.permute(0, 1, 3, 2).contiguous()
+        k = k2d.view(batch_size, seq_len, self.n_head, self.attn_hidden_dim)
+        k = k.permute(0, 2, 1, 3)
+        k = k.contiguous()
+
+        v = v2d.view(batch_size, seq_len, self.n_head, self.attn_hidden_dim)
+        v = v.permute(0, 2, 1, 3)
+        v = v.contiguous()
+
+        # Transpose K for attention computation
+        kT = k.permute(0, 1, 3, 2)
+        kT = kT.contiguous()
         ### END ASSIGN3_3
         return q, kT, v
 
@@ -120,9 +134,9 @@ class MultiHeadAttention(Module):
         # Compute attention scores: Q @ K^T
         scores = q @ kT
 
-        # Scale by sqrt(d_k)
-        scale_value = float(self.attn_hidden_dim ** 0.5)
-        scores = scores / scale_value
+        # Scale by 1/sqrt(d_k)
+        scale_value = 1.0 / (self.attn_hidden_dim ** 0.5)
+        scores = scores * scale_value
 
         # Apply causal mask if needed
         if self.causal:
@@ -139,12 +153,11 @@ class MultiHeadAttention(Module):
         # Reshape back to (batch_size, seq_len, n_embd)
         # context: (batch_size, num_heads, seq_len, attn_hidden_dim)
         # -> (batch_size, seq_len, num_heads, attn_hidden_dim)
-        context = context.permute(0, 2, 1, 3).contiguous()
-        # -> (batch_size, seq_len, n_embd)
-        context = context.view(batch_size, queries_len, self.n_embd)
+        context = context.permute(0, 2, 1, 3)
+        context = context.contiguous().view(batch_size, queries_len, self.n_embd)
 
         # Apply output projection
-        context2d = context.view(batch_size * queries_len, self.n_embd)
+        context2d = context.contiguous().view(batch_size * queries_len, self.n_embd)
         result2d = self.out_projection(context2d)
         result = result2d.view(batch_size, queries_len, self.n_embd)
         ### END ASSIGN3_3
