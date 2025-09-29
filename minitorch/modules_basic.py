@@ -142,12 +142,13 @@ class Linear(Module):
         for d in shape[:-1]:
             flat_batch *= d
 
-        x2 = x.view(flat_batch, in_size)
-        W  = self.weights.value.view(in_size, out_size)
+        x2 = x.contiguous().view(flat_batch, in_size)
+        W  = self.weights.value.contiguous().view(in_size, out_size)
 
-        x_b = x2.view(flat_batch, in_size, 1)
-        W_b = W.view(1, in_size, out_size)
-        out2d = (x_b * W_b).sum(1).view(flat_batch, out_size)
+        x_b = x2.contiguous().view(flat_batch, in_size, 1)
+        W_b = W.contiguous().view(1, in_size, out_size)
+        out2d = (x_b * W_b).sum(1)
+        out2d = out2d.contiguous().view(flat_batch, out_size)
 
         if len(shape) == 2:
             out = out2d.view(shape[0], out_size)
