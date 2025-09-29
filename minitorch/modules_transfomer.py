@@ -135,11 +135,8 @@ class MultiHeadAttention(Module):
         kT = kT.contiguous()
         v = v.contiguous()
 
-        k = kT.permute(0, 1, 3, 2).contiguous()
-
-        q_expanded = q.view(batch_size, num_head, queries_len, 1, q_dim)
-        k_expanded = k.view(batch_size, num_head, 1, queries_len, q_dim)
-        scores = (q_expanded * k_expanded).sum(dim=4).view(batch_size, num_head, queries_len, queries_len)
+        # Compute Q @ K^T using matmul (this is correct when tensors are contiguous)
+        scores = q @ kT
 
         # Create scale value as a tensor to ensure GPU compatibility
         scale_value = tensor(
@@ -156,9 +153,9 @@ class MultiHeadAttention(Module):
         attn = softmax(scores, dim=3)
         attn = self.dropout(attn)
 
-        attn_expanded = attn.view(batch_size, num_head, queries_len, queries_len, 1)
-        v_expanded = v.view(batch_size, num_head, 1, queries_len, v_dim)
-        context = (attn_expanded * v_expanded).sum(dim=3).view(batch_size, num_head, queries_len, v_dim)
+        # Compute attention @ values using matmul
+        attn = attn.contiguous()
+        context = attn @ v
 
         context = context.permute(0, 2, 1, 3).contiguous()
         context = context.view(batch_size, queries_len, self.n_embd)
