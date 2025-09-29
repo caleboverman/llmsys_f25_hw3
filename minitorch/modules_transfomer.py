@@ -131,47 +131,31 @@ class MultiHeadAttention(Module):
         _, _, _, v_dim = v.shape
         assert q_dim == k_dim == v_dim
         ### BEGIN ASSIGN3_3
-        # Compute attention scores elementwise to avoid backend matmul discrepancies
         q = q.contiguous()
-        k = kT.permute(0, 1, 3, 2).contiguous()
+        kT = kT.contiguous()
+        v = v.contiguous()
 
-        q_expanded = q.view(batch_size, num_head, queries_len, 1, q_dim)
-        k_expanded = k.view(batch_size, num_head, 1, queries_len, q_dim)
-        scores = (q_expanded * k_expanded).sum(dim=4).view(batch_size, num_head, queries_len, queries_len)
+        q_flat = q.view(batch_size * num_head, queries_len, q_dim)
+        kT_flat = kT.view(batch_size * num_head, q_dim, queries_len)
+        scores = (q_flat @ kT_flat).view(batch_size, num_head, queries_len, queries_len)
 
-        # Scale by 1/sqrt(d_k)
-        scale_value = tensor(
-            [datatype(1.0 / np.sqrt(self.attn_hidden_dim))],
+        scale = tensor(
+            [datatype(1.0 / (self.attn_hidden_dim ** 0.5))],
             backend=self.backend,
             requires_grad=False,
-        ).view(1, 1, 1, 1)
-        scores = scores * scale_value
+        )
+        scores = scores * scale
 
-        # Apply causal mask if needed
         if self.causal:
-            position_ids = tensor(
-                [list(range(queries_len))],
-                backend=self.backend,
-                requires_grad=False,
-            )
-            query_indices = position_ids.view(1, 1, queries_len, 1)
-            key_indices = position_ids.view(1, 1, 1, queries_len)
-            mask = (key_indices > query_indices) * tensor(
-                [datatype(-1e9)],
-                backend=self.backend,
-                requires_grad=False,
-            ).view(1, 1, 1, 1)
+            mask = self.create_causal_mask(queries_len)
             scores = scores + mask
 
-        # Apply softmax and dropout
         attn = softmax(scores, dim=3)
         attn = self.dropout(attn)
 
-        # Apply attention to values using elementwise contraction
-        v = v.contiguous()
-        attn_expanded = attn.view(batch_size, num_head, queries_len, queries_len, 1)
-        v_expanded = v.view(batch_size, num_head, 1, queries_len, v_dim)
-        context = (attn_expanded * v_expanded).sum(dim=3).view(batch_size, num_head, queries_len, v_dim)
+        attn_flat = attn.view(batch_size * num_head, queries_len, queries_len)
+        v_flat = v.view(batch_size * num_head, queries_len, v_dim)
+        context = (attn_flat @ v_flat).view(batch_size, num_head, queries_len, v_dim)
 
         # Reshape back to (batch_size, seq_len, n_embd)
         context = context.permute(0, 2, 1, 3).contiguous()
