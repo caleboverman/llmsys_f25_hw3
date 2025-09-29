@@ -136,16 +136,20 @@ def backpropagate(variable: Variable, deriv: Any) -> None:
         if node.is_constant():
             continue
 
-        gradient_out = gradients.get(node.unique_id, 0.0)
+        gradient_out = gradients.get(node.unique_id)
+        if gradient_out is None:
+            continue
 
         if node.is_leaf():
             node.accumulate_derivative(gradient_out)
-            continue
-
-        for parent, parent_grad in node.chain_rule(gradient_out):
-            if parent.is_constant():
-                continue
-            gradients[parent.unique_id] = gradients.get(parent.unique_id, 0.0) + parent_grad
+        else:
+            for parent, parent_grad in node.chain_rule(gradient_out):
+                if parent.is_constant():
+                    continue
+                if parent.unique_id in gradients:
+                    gradients[parent.unique_id] = gradients[parent.unique_id] + parent_grad
+                else:
+                    gradients[parent.unique_id] = parent_grad
     # END ASSIGN1_1
 
 
